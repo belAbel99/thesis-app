@@ -1,0 +1,27 @@
+[33m6f3203b[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33m0991290[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{1}: pull: Fast-forward
+[33m30a7d06[m HEAD@{2}: reset: moving to HEAD
+[33m30a7d06[m HEAD@{3}: commit: only email sign in, program types in admin, drop down program, new table format in student detail
+[33m1d00824[m HEAD@{4}: commit: only email sign in, program types in admin, drop down program, new table format in student detail
+[33mb4f30f6[m HEAD@{5}: commit: add back home sidebar student
+[33ma9e42c0[m HEAD@{6}: pull: Merge made by the 'ort' strategy.
+[33m5fb6b70[m HEAD@{7}: commit: added auth if the user does not exist or exist
+[33mb696230[m HEAD@{8}: commit: change the studentDetails to read only and fix the back button to student
+[33mfdd8aae[m HEAD@{9}: pull: Merge made by the 'ort' strategy.
+[33md506f36[m HEAD@{10}: commit: fixed the fetch students and employee in admin
+[33mc15c195[m HEAD@{11}: pull: Fast-forward
+[33m83da7c5[m[33m ([m[1;31morigin/buron-branch[m[33m)[m HEAD@{12}: commit: added student and employee statcard
+[33madfeeec[m HEAD@{13}: commit: updated print list
+[33mc9f4ea9[m HEAD@{14}: commit: changes in employee view
+[33m5e25ccc[m HEAD@{15}: commit: added alot
+[33md976a38[m HEAD@{16}: commit: added alot
+[33mda39d9d[m HEAD@{17}: commit: added alot
+[33m8510733[m HEAD@{18}: commit: added changes on pwd and alot
+[33m0805272[m HEAD@{19}: commit: added alot
+[33me638b45[m HEAD@{20}: commit: added alot
+[33m9248447[m HEAD@{21}: commit: added a lot
+[33me358a51[m HEAD@{22}: commit: added edit crud
+[33meccb040[m HEAD@{23}: commit: unused file
+[33md910077[m HEAD@{24}: Branch: renamed refs/heads/master to refs/heads/main
+[33md910077[m HEAD@{26}: commit: first commit
+[33m72756c4[m HEAD@{27}: commit (initial): Initial commit from Create Next App
