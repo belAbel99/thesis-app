@@ -259,10 +259,10 @@ const AdminCalendarPage = () => {
             <h1 className="text-3xl font-bold text-blue-700">Appointment Calendar</h1>
             <div className="flex items-center gap-4">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] text-black">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="text-black bg-white">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="Scheduled">Scheduled</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
@@ -270,10 +270,10 @@ const AdminCalendarPage = () => {
                 </SelectContent>
               </Select>
               <Select value={concernFilter} onValueChange={setConcernFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] text-black">
                   <SelectValue placeholder="Filter by concern" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="text-black bg-white">
                   <SelectItem value="all">All Concerns</SelectItem>
                   <SelectItem value="Academic">Academic</SelectItem>
                   <SelectItem value="Career">Career</SelectItem>

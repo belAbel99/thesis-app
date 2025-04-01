@@ -34,10 +34,8 @@ const PatientForms = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showAccountDialog, setShowAccountDialog] = useState(false); // New state for account selection dialog
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
-  const [userId, setUserId] = useState<string | null>(null); // New state to store userId
 
   const form = useForm<z.infer<typeof UserFormValidation>>({
     resolver: zodResolver(UserFormValidation),
@@ -107,12 +105,10 @@ const PatientForms = () => {
       if (checkResponse.ok) {
         if (checkData.patient) {
           const { userId } = checkData.patient;
-          // Redirect to student page directly if the user is already a student
           router.push(`/patients/${userId}/student`);
         } else if (checkData.userId) {
-          // Store the userId in state and show account selection dialog
-          setUserId(checkData.userId);
-          setShowAccountDialog(true);
+          // Directly redirect to student registration
+          router.push(`/patients/${checkData.userId}/register?email=${encodeURIComponent(email)}`);
         }
       }
     } catch (err) {
@@ -121,39 +117,33 @@ const PatientForms = () => {
     }
   };
 
-  const handleAccountSelection = (accountType: "student" | "counselor") => {
-    setShowAccountDialog(false); // Close the dialog
-    if (userId) {
-      if (accountType === "student") {
-        router.push(`/patients/${userId}/register?email=${encodeURIComponent(email)}`);
-      } else if (accountType === "counselor") {
-        router.push(`/counselors/${userId}/register?email=${encodeURIComponent(email)}`);
-      }
-    } else {
-      alert("User ID is missing. Please try again.");
-    }
-  };
-
   return (
     <>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex-1">
-          <section className="mb-12 space-y-4">
-            <h1 className="header text-green-400">Hi There! 👋</h1>
-            <p className="text-dark-700">Schedule your First Appointment</p>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 w-full max-w-md mx-auto">
+          <section className="mb-8 text-center">
+            <h1 className="text-3xl font-bold text-blue-800 mb-2">Welcome to CSU Guidance</h1>
+            <p className="text-gray-600">Schedule your first counseling appointment</p>
           </section>
 
-          <CustomFormField
-            fieldType={FormFieldType.INPUT}
-            control={form.control}
-            name="email"
-            label="Email"
-            placeholder="JohnDoe@gmail.com"
-            iconSrc="/assets/icons/email.svg"
-            iconAlt="email"
-          />
+          <div className="bg-black rounded-xl shadow-md p-6 border border-gray-100">
+            <CustomFormField
+              fieldType={FormFieldType.INPUT}
+              control={form.control}
+              name="email"
+              label="Email"
+              placeholder="example@gmail.com"
+              required={true}
+            />
 
-          <SubmitButton isLoading={isLoading}>Get Started</SubmitButton>
+            <SubmitButton isLoading={isLoading} className="w-full mt-4 bg-blue-600 hover:bg-blue-700">
+              Get Started
+            </SubmitButton>
+          </div>
+
+          <div className="text-center text-sm text-gray-500 mt-4">
+            <p>By continuing, you agree to our counseling policies and privacy terms.</p>
+          </div>
         </form>
       </Form>
 
@@ -166,40 +156,6 @@ const PatientForms = () => {
           onVerify={handleOtpVerification}
         />
       )}
-
-      {/* Account Selection Dialog */}
-      <Dialog open={showAccountDialog} onOpenChange={setShowAccountDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Choose Account Type</DialogTitle>
-            <DialogDescription>
-              Please select the type of account you want to create.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col space-y-4">
-            <Button
-              onClick={() => handleAccountSelection("student")}
-              className="bg-blue-500 hover:bg-blue-600 text-white"
-            >
-              Create Student Account
-            </Button>
-            <Button
-              onClick={() => handleAccountSelection("counselor")}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              Create Counselor Account
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => setShowAccountDialog(false)}
-              className="bg-gray-500 hover:bg-gray-600 text-white"
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };

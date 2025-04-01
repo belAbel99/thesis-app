@@ -1,6 +1,6 @@
 // components/StudentSideBar.tsx
 import { useState } from "react";
-import { Menu, X, User, Home, FileText, Calendar, ClipboardList } from "lucide-react";
+import { Menu, X, User, Home, FileText, Calendar, ClipboardList, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FiArrowLeft } from 'react-icons/fi';
@@ -29,6 +29,11 @@ const StudentSideBar = ({ userId }: { userId: string }) => {
       label: "My Appointments",
       href: `/patients/${userId}/student/myAppointments`,
       icon: <ClipboardList className="w-5 h-5" />
+    },
+    {
+      name: "My Progress",
+      href: `/patients/${userId}/student/progress`,
+      icon: <TrendingUp className="w-5 h-5" />,
     },
     {
       label: "Go Back Home",

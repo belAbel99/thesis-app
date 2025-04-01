@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProfileBadge } from "@/components/ProfileBadge";
+import { getStudentGoals } from "@/lib/actions/progress.actions";
 import { Checkbox } from "@/components/ui/checkbox"; // Add this line
 
 interface Appointment {
@@ -28,6 +29,8 @@ interface Appointment {
   sessionNotes: string;
   counselorNotes?: string;
   duration: number;
+  goals: string[]; // Define goals as an array of strings
+  progressNotes: string; // Add progress notes
 }
 
 interface Student {
@@ -60,7 +63,9 @@ const StudentCalendarPage = () => {
     concernType: "Academic" as const, // Added concernType property with default value
     followUpRequired: false, // Added followUpRequired property with default value
     program: "", // Added program property
-    duration: 30 // Added duration property
+    duration: 30, // Added duration property
+    progressNotes: "", // Added progressNotes property
+    goals: [] as string[] // Added goals property
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -113,6 +118,23 @@ const StudentCalendarPage = () => {
     }
   };
 
+  // Add state for available goals
+const [availableGoals, setAvailableGoals] = useState<any[]>([]);
+const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+
+// Fetch goals when component mounts
+useEffect(() => {
+  const fetchGoals = async () => {
+    if (student) {
+      const goals = await getStudentGoals(student.$id);
+      setAvailableGoals(goals);
+    }
+  };
+  fetchGoals();
+}, [student]);
+
+
+
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
@@ -154,16 +176,18 @@ const StudentCalendarPage = () => {
     setShowScheduleModal(true);
     // Reset form state with student name pre-filled
     setNewAppointment({
-      patientName: student?.name || "",
-      time: "",
-      reason: "",
-      status: "Scheduled",
-      program: student?.program || "",
-      concernType: "Academic",
-      followUpRequired: false,
-      sessionNotes: "",
-      duration: 30
-    });
+              patientName: student?.name || "",
+              time: "",
+              reason: "",
+              status: "Scheduled",
+              program: student?.program || "",
+              concernType: "Academic",
+              followUpRequired: false,
+              sessionNotes: "",
+              duration: 30,
+              progressNotes: "", // Ensure progressNotes is included
+              goals: [] // Ensure goals is included
+            });
     setSubmitSuccess(false);
     setSubmitError("");
   };
@@ -199,14 +223,16 @@ const StudentCalendarPage = () => {
           patientName: newAppointment.patientName,
           date: formattedDate,
           time: newAppointment.time,
-          reason: newAppointment.sessionNotes, // Using sessionNotes as reason for backward compatibility
+          reason: newAppointment.sessionNotes,
           status: newAppointment.status,
           userid: userId,
           program: student?.program || "",
           concernType: newAppointment.concernType,
           followUpRequired: newAppointment.followUpRequired,
           sessionNotes: newAppointment.sessionNotes,
-          duration: newAppointment.duration
+          duration: newAppointment.duration,
+          goals: selectedGoals, // Include selected goals
+          progressNotes: newAppointment.progressNotes
         }
       );
       
@@ -219,6 +245,8 @@ const StudentCalendarPage = () => {
       // Close modal after a delay
       setTimeout(() => {
         setShowScheduleModal(false);
+        setSelectedGoals([]); // Reset selected goals
+
       }, 2000);
       
     } catch (error) {
@@ -306,150 +334,232 @@ const StudentCalendarPage = () => {
   };
 
   // Schedule appointment modal
-  const renderScheduleModal = () => {
-    if (!showScheduleModal || !schedulingDate) return null;
+// Update the renderScheduleModal function with these changes:
 
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-          <div className="flex justify-between items-center p-6 border-b">
-            <h2 className="text-xl font-semibold text-gray-800">
-              Schedule Appointment for {format(schedulingDate, 'MMMM d, yyyy')}
-            </h2>
-            <button 
-              onClick={() => setShowScheduleModal(false)}
-              className="text-gray-400 hover:text-gray-500"
-            >
-              <X className="w-5 h-5" />
-            </button>
+const renderScheduleModal = () => {
+  if (!showScheduleModal || !schedulingDate) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Schedule Appointment for {format(schedulingDate, 'MMMM d, yyyy')}
+          </h2>
+          <button 
+            onClick={() => setShowScheduleModal(false)}
+            className="text-gray-400 hover:text-gray-500"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmitAppointment} className="p-6 space-y-4">
+          {/* Student Name (read-only) */}
+          <div className="space-y-2">
+            <Label className="text-gray-800">Student Name</Label>
+            <Input
+              value={newAppointment.patientName}
+              readOnly
+              className="bg-gray-50 text-gray-800"
+            />
           </div>
-          
-          <form onSubmit={handleSubmitAppointment} className="p-6 space-y-4">
-            <div className="space-y-2 text-sm font-medium text-black">
-              <Label htmlFor="patientName">Student Name</Label>
+
+          {/* Program (read-only) */}
+          <div className="space-y-2">
+            <Label className="text-gray-800">Program</Label>
+            <Input
+              value={student?.program || ""}
+              readOnly
+              className="bg-gray-50 text-gray-800"
+            />
+          </div>
+
+          {/* Time and Duration in one row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-gray-800">Time</Label>
               <Input
-                id="patientName"
-                name="patientName"
-                value={newAppointment.patientName}
-                readOnly
-                className="bg-gray-50 text-black"
+                type="time"
+                value={newAppointment.time}
+                onChange={(e) => setNewAppointment({
+                  ...newAppointment, 
+                  time: e.target.value
+                })}
+                required
+                className="text-white"
               />
             </div>
-
-            <div className="space-y-2 text-sm font-medium text-black">
-              <Label htmlFor="program">Program</Label>
+            <div className="space-y-2">
+              <Label className="text-gray-800">Duration (minutes)</Label>
               <Input
-                id="program"
-                name="program"
-                value={student?.program || ""}
-                readOnly
-                className="bg-gray-50 text-black w-full " 
+                type="number"
+                min="15"
+                max="120"
+                step="15"
+                value={newAppointment.duration}
+                onChange={(e) => setNewAppointment({
+                  ...newAppointment,
+                  duration: Number(e.target.value)
+                })}
+                required
+                className="text-white"
               />
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4 text-black">
-              <div className="space-y-2">
-                <Label htmlFor="time">Time</Label>
-                <Input
-                  className="text-white"
-                  id="time"
-                  name="time"
-                  type="time"
-                  value={newAppointment.time}
-                  onChange={(e) => setNewAppointment({...newAppointment, time: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="space-y-2 text-gray-800">
-                <Label htmlFor="duration">Duration (minutes)</Label>
-                <Input
-                  className="text-white"
-                  id="duration"
-                  name="duration"
-                  type="number"
-                  min="15"
-                  max="120"
-                  step="15"
-                  value={newAppointment.duration}
-                  onChange={(e) => setNewAppointment({...newAppointment, duration: Number(e.target.value)})}
-                  required
-                />
-              </div>
-            </div>
+          {/* Concern Type */}
+          <div className="space-y-2">
+            <Label className="text-gray-800">Concern Type</Label>
+            <Select
+              value={newAppointment.concernType}
+              onValueChange={(value) => setNewAppointment({
+                ...newAppointment,
+                concernType: value as any
+              })}
+            >
+              <SelectTrigger className="text-gray-800">
+                <SelectValue placeholder="Select concern type" />
+              </SelectTrigger>
+              <SelectContent className="text-gray-800 bg-white">
+                <SelectItem value="Academic">Academic</SelectItem>
+                <SelectItem value="Career">Career</SelectItem>
+                <SelectItem value="Personal">Personal</SelectItem>
+                <SelectItem value="Crisis">Crisis (Urgent)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="space-y-2 text-black">
-              <Label htmlFor="concernType">Concern Type</Label>
+          {/* Follow-up Required */}
+          <div className="flex items-center space-x-2 text-black">
+            <Checkbox 
+              id="followUpRequired"
+              checked={newAppointment.followUpRequired}
+              onCheckedChange={(checked) => setNewAppointment({
+                ...newAppointment,
+                followUpRequired: Boolean(checked)
+              })}
+            />
+            <Label htmlFor="followUpRequired" className="text-gray-800">
+              Requires Follow-up
+            </Label>
+          </div>
+
+          {/* Session Notes */}
+          <div className="space-y-2">
+            <Label className="text-gray-800">Session Notes</Label>
+            <Textarea
+              value={newAppointment.sessionNotes}
+              onChange={(e) => setNewAppointment({
+                ...newAppointment,
+                sessionNotes: e.target.value
+              })}
+              placeholder="Describe your concerns..."
+              rows={4}
+              className="text-white"
+            />
+          </div>
+
+          {/* Related Goals (only if available) */}
+          {availableGoals.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-gray-800">Related Goals (optional)</Label>
               <Select
-                value={newAppointment.concernType}
-                onValueChange={(value) => setNewAppointment({...newAppointment, concernType: value as any})}
+                onValueChange={(value) => {
+                  if (!newAppointment.goals.includes(value)) {
+                    setNewAppointment({
+                      ...newAppointment,
+                      goals: [...newAppointment.goals, value]
+                    });
+                  }
+                }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select concern type" />
+                <SelectTrigger className="text-gray-800">
+                  <SelectValue placeholder="Select goals to associate" />
                 </SelectTrigger>
-                <SelectContent className="text-black bg-white">
-                  <SelectItem value="Academic">Academic</SelectItem>
-                  <SelectItem value="Career">Career</SelectItem>
-                  <SelectItem value="Personal">Personal</SelectItem>
-                  <SelectItem value="Crisis">Crisis (Urgent)</SelectItem>
+                <SelectContent className="text-gray-800 bg-white">
+                  {availableGoals.map((goal) => (
+                    <SelectItem key={goal.$id} value={goal.$id}>
+                      {goal.title} ({goal.progress}%)
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex items-center space-x-2 text-black">
-              <Checkbox 
-                id="followUpRequired"
-                checked={newAppointment.followUpRequired}
-                onCheckedChange={(checked) => setNewAppointment({...newAppointment, followUpRequired: Boolean(checked)})}
-              />
-              <Label htmlFor="followUpRequired">Requires Follow-up</Label>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="sessionNotes">Session Notes</Label>
-              <Textarea
-                id="sessionNotes"
-                name="sessionNotes"
-                value={newAppointment.sessionNotes}
-                onChange={(e) => setNewAppointment({...newAppointment, sessionNotes: e.target.value})}
-                placeholder="Describe your concerns..."
-                rows={4}
-              />
-            </div>
-
-            {submitError && (
-              <div className="p-3 bg-red-100 text-red-700 rounded-md">
-                {submitError}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {newAppointment.goals.map((goalId) => {
+                  const goal = availableGoals.find(g => g.$id === goalId);
+                  return goal ? (
+                    <span 
+                      key={goalId}
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
+                    >
+                      {goal.title}
+                      <button
+                        type="button"
+                        onClick={() => setNewAppointment({
+                          ...newAppointment,
+                          goals: newAppointment.goals.filter(id => id !== goalId)
+                        })}
+                        className="ml-1 text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ) : null;
+                })}
               </div>
-            )}
-            
-            {submitSuccess && (
-              <div className="p-3 bg-green-100 text-green-700 rounded-md">
-                Appointment scheduled successfully!
-              </div>
-            )}
-
-            <div className="flex justify-end pt-4 space-x-3 text-black">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowScheduleModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Scheduling..." : "Schedule Appointment"}
-              </Button>
             </div>
-          </form>
-        </div>
+          )}
+
+          {/* Progress Notes (optional) */}
+          <div className="space-y-2">
+            <Label className="text-gray-800">Progress Notes (optional)</Label>
+            <Textarea
+              value={newAppointment.progressNotes}
+              onChange={(e) => setNewAppointment({
+                ...newAppointment,
+                progressNotes: e.target.value
+              })}
+              placeholder="Any initial notes about your progress..."
+              rows={3}
+              className="text-white"
+            />
+          </div>
+
+          {submitError && (
+            <div className="p-3 bg-red-100 text-red-700 rounded-md">
+              {submitError}
+            </div>
+          )}
+          
+          {submitSuccess && (
+            <div className="p-3 bg-green-100 text-green-700 rounded-md">
+              Appointment scheduled successfully!
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 space-x-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowScheduleModal(false)}
+              className="border-gray-300 hover:bg-gray-50 text-gray-800"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Scheduling..." : "Schedule Appointment"}
+            </Button>
+          </div>
+        </form>
       </div>
-    );
-  };
-
+    </div>
+  );
+};
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
