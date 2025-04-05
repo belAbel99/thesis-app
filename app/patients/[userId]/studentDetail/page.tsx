@@ -80,7 +80,7 @@ const StudentDetail = () => {
           data: [
             ["Identification Type", student.identificationType],
             ["Identification Number", student.identificationNumber],
-            ["Identification Document", <a href={student.identificationDocumentUrl} target="_blank" className="text-blue-400">View Document</a>],
+            ["Identification Document", <a key="identification-document" href={student.identificationDocumentUrl} target="_blank" className="text-blue-400">View Document</a>],
           ],
         },
         {

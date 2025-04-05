@@ -6,7 +6,7 @@ import CounselorSideBar from "@/components/CounselorSideBar";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ import Cookies from "js-cookie";
 import { decodeJwt } from "jose";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 interface Appointment {
   $id: string;
@@ -30,6 +31,18 @@ interface Appointment {
   counselorNotes?: string;
   duration: number;
   cancellationReason?: string;
+  goals?: string[]; // Add goals field
+  progressNotes?: string; // Add progress notes field
+}
+
+interface Goal {
+  $id: string;
+  title: string;
+  description: string;
+  progress: number;
+  status: string;
+  targetDate: string;
+  metricType: string;
 }
 
 const CounselorCalendarPage = () => {
@@ -45,6 +58,10 @@ const CounselorCalendarPage = () => {
   const [counselorNotes, setCounselorNotes] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
   const [followUpRequired, setFollowUpRequired] = useState(false);
+  const [progressNotes, setProgressNotes] = useState(""); // Add progress notes state
+  const [studentGoals, setStudentGoals] = useState<Goal[]>([]); // Add student goals state
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]); // Track selected goals
+  const [goalProgressUpdates, setGoalProgressUpdates] = useState<Record<string, number>>({}); // Track progress updates
 
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -146,6 +163,8 @@ const CounselorCalendarPage = () => {
       setSelectedAppointmentId(appointmentId);
       setSelectedStatus(newStatus);
       setFollowUpRequired(appointment?.followUpRequired || false);
+      setCounselorNotes(appointment?.counselorNotes || "");
+      setProgressNotes(appointment?.progressNotes || ""); // Initialize progress notes
       setIsModalOpen(true);
     } else {
       try {
@@ -169,41 +188,88 @@ const [progressMetrics, setProgressMetrics] = useState<{
   notes: string;
 }[]>([]);
 
-  const handleModalSubmit = async () => {
-    if (!selectedAppointmentId || !selectedStatus) return;
-    
-    try {
-      const updateData: any = { 
-        status: selectedStatus,
-        followUpRequired,
-        counselorNotes
+const handleModalSubmit = async () => {
+  if (!selectedAppointmentId || !selectedStatus) return;
+  
+  try {
+    const appointment = appointments.find(a => a.$id === selectedAppointmentId);
+    if (!appointment) return;
 
-      };
+    const updateData: any = { 
+      status: selectedStatus,
+      followUpRequired,
+      counselorNotes
+    };
+    
+    if (selectedStatus === "Cancelled") {
+      updateData.cancellationReason = cancellationReason;
+    } else if (selectedStatus === "Completed") {
+      // Include progress notes in update
+      updateData.progressNotes = progressNotes;
       
-      if (selectedStatus === "Cancelled") {
-        updateData.cancellationReason = cancellationReason;
-      } else if (selectedStatus === "Completed") {
-        updateData.counselorNotes = counselorNotes;
+      // Update goals if any were selected
+      if (selectedGoals.length > 0) {
+        updateData.goals = selectedGoals;
       }
 
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_DATABASE_ID!,
-        "6734ba2700064c66818e",
-        selectedAppointmentId,
-        updateData
-      );
-      fetchAppointments();
-    } catch (error) {
-      console.error("Error updating appointment:", error);
-    } finally {
-      setIsModalOpen(false);
-      setSelectedAppointmentId(null);
-      setSelectedStatus(null);
-      setCounselorNotes("");
-      setCancellationReason("");
-      setFollowUpRequired(false);
+      // Record progress metrics and update goals
+      for (const goalId of selectedGoals) {
+        const progressUpdate = goalProgressUpdates[goalId];
+        if (progressUpdate !== undefined) {
+          await recordProgressMetric({
+            studentId: appointment.userid,
+            sessionId: selectedAppointmentId,
+            metricType: "Goal Progress",
+            value: progressUpdate,
+            notes: `Progress updated during session on ${format(new Date(), 'MMMM d, yyyy')}`
+          });
+
+          await updateGoalProgress(
+            goalId,
+            progressUpdate,
+            progressUpdate >= 100 ? "Completed" : "In Progress"
+          );
+        }
+      }
     }
-  };
+
+    await databases.updateDocument(
+      process.env.NEXT_PUBLIC_DATABASE_ID!,
+      "6734ba2700064c66818e",
+      selectedAppointmentId,
+      updateData
+    );
+    
+    fetchAppointments();
+  } catch (error) {
+    console.error("Error updating appointment:", error);
+  } finally {
+    setIsModalOpen(false);
+    setSelectedAppointmentId(null);
+    setSelectedStatus(null);
+    setCounselorNotes("");
+    setCancellationReason("");
+    setProgressNotes("");
+    setFollowUpRequired(false);
+    setSelectedGoals([]);
+    setGoalProgressUpdates({});
+  }
+};
+
+const handleGoalProgressChange = (goalId: string, value: number) => {
+  setGoalProgressUpdates(prev => ({
+    ...prev,
+    [goalId]: value
+  }));
+};
+
+const toggleGoalSelection = (goalId: string) => {
+  setSelectedGoals(prev => 
+    prev.includes(goalId)
+      ? prev.filter(id => id !== goalId)
+      : [...prev, goalId]
+  );
+};
 
   const handleDelete = async (appointmentId: string) => {
     if (confirm("Are you sure you want to delete this appointment?")) {
@@ -449,6 +515,9 @@ const [progressMetrics, setProgressMetrics] = useState<{
             <DialogTitle>
               {selectedStatus === "Cancelled" ? "Cancel Appointment" : "Complete Session"}
             </DialogTitle>
+            <DialogDescription>
+              {selectedStatus === "Completed" && "Update progress on student goals and add session notes"}
+            </DialogDescription>
           </DialogHeader>
           {selectedStatus === "Cancelled" ? (
             <div className="space-y-4">
@@ -479,9 +548,67 @@ const [progressMetrics, setProgressMetrics] = useState<{
                   value={counselorNotes}
                   onChange={(e) => setCounselorNotes(e.target.value)}
                   required
-                  rows={6}
+                  rows={4}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>Progress Notes</Label>
+                <Textarea
+                  placeholder="Enter notes about student progress..."
+                  value={progressNotes}
+                  onChange={(e) => setProgressNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {studentGoals.length > 0 && (
+                <div className="space-y-4">
+                  <Label>Associated Goals</Label>
+                  <div className="space-y-3">
+                    {studentGoals.map(goal => (
+                      <div key={goal.$id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Checkbox
+                              id={`goal-${goal.$id}`}
+                              checked={selectedGoals.includes(goal.$id)}
+                              onCheckedChange={() => toggleGoalSelection(goal.$id)}
+                            />
+                            <Label htmlFor={`goal-${goal.$id}`} className="font-medium">
+                              {goal.title}
+                            </Label>
+                          </div>
+                          <Badge variant="outline">{goal.metricType}</Badge>
+                        </div>
+                        
+                        {selectedGoals.includes(goal.$id) && (
+                          <div className="mt-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label>Progress Update</Label>
+                              <span className="text-sm text-gray-600">
+                                {goalProgressUpdates[goal.$id] || goal.progress}%
+                              </span>
+                            </div>
+                            <Input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={goalProgressUpdates[goal.$id] || goal.progress}
+                              onChange={(e) => handleGoalProgressChange(goal.$id, parseInt(e.target.value))}
+                            />
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <span>0%</span>
+                              <span>100%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="followUpRequired"

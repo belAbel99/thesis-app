@@ -16,9 +16,6 @@ const StudentList = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [emails, setEmails] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isRecommendationModalOpen, setIsRecommendationModalOpen] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [dietRecommendation, setDietRecommendation] = useState("");
   const studentsPerPage = 5;
   const router = useRouter();
 
@@ -71,34 +68,6 @@ const StudentList = () => {
     router.push(`/patients/${studentId}/studentDetailAdmin`);
   };
 
-  // Function to send diet recommendation to a single student
-  const sendDietRecommendation = async () => {
-    if (!selectedStudentId || !dietRecommendation) return;
-
-    try {
-      const res = await fetch(`/api/students/${selectedStudentId}/recommendation`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ dietRecommendation }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        console.error("API Error:", errorData);
-        throw new Error("Failed to send recommendation");
-      }
-
-      alert("Diet recommendation sent successfully!");
-      setIsRecommendationModalOpen(false);
-      setDietRecommendation("");
-    } catch (err) {
-      console.error("Error sending recommendation:", err);
-      alert("Failed to send recommendation");
-    }
-  };
-
   return (
     <section className="student-list w-full px-6">
       <h2 className="text-2xl font-semibold mb-4 text-blue-700 text-center">Student List</h2>
@@ -107,7 +76,7 @@ const StudentList = () => {
       <div className="flex flex-col items-center mb-4">
         <StudentListPrintButton filteredStudents={filteredStudents} filterType={filterType} view="student" />
         <div className="w-96 mt-2">
-          <ComboBox filterType={filterType} setFilterType={setFilterType} />
+          <ComboBox filterType={filterType} setFilterType={setFilterType} view="students" />
         </div>
         <input
           type="text"
@@ -150,36 +119,6 @@ const StudentList = () => {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Recommendation Modal */}
-      {isRecommendationModalOpen && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
-            <h2 className="text-xl font-semibold mb-4">Send Diet Recommendation</h2>
-            <textarea
-              className="w-full p-3 border border-gray-300 rounded-lg mb-4"
-              placeholder="Enter diet recommendation..."
-              value={dietRecommendation}
-              onChange={(e) => setDietRecommendation(e.target.value)}
-              rows={5}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsRecommendationModalOpen(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={sendDietRecommendation}
-                className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-600"
-              >
-                Send
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

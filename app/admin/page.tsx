@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import StatCard from "@/components/StatCard";
-import StudentList from "@/components/StudentList";
 import SideBar from "@/components/SideBar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { UserRound, Calendar, BookOpenText, Stethoscope } from "lucide-react";
+import { UserRound, Calendar, BookOpenText, Stethoscope, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Client, Databases } from "appwrite";
 
 const client = new Client()
@@ -20,6 +18,9 @@ const AdminDashboard = () => {
   const [studentsCount, setStudentsCount] = useState(0);
   const [counselorsCount, setCounselorsCount] = useState(0);
   const [appointmentsCount, setAppointmentsCount] = useState(0);
+  const [completedAppointments, setCompletedAppointments] = useState(0);
+  const [cancelledAppointments, setCancelledAppointments] = useState(0);
+  const [scheduledAppointments, setScheduledAppointments] = useState(0);
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const router = useRouter();
 
@@ -32,7 +33,6 @@ const AdminDashboard = () => {
           process.env.NEXT_PUBLIC_PATIENT_COLLECTION_ID!
         );
         setStudentsCount(studentsRes.documents.length);
- 
 
         // Fetch counselors
         const counselorsRes = await databases.listDocuments(
@@ -46,15 +46,26 @@ const AdminDashboard = () => {
           process.env.NEXT_PUBLIC_DATABASE_ID!,
           "6734ba2700064c66818e" // Appointment collection ID
         );
-        setAppointmentsCount(appointmentsRes.documents.length);
+        
+        const allAppointments = appointmentsRes.documents;
+        setAppointmentsCount(allAppointments.length);
+        
+        // Count appointments by status
+        const completed = allAppointments.filter((appt: any) => appt.status === "Completed").length;
+        const cancelled = allAppointments.filter((appt: any) => appt.status === "Cancelled").length;
+        const scheduled = allAppointments.filter((appt: any) => appt.status === "Scheduled").length;
+        
+        setCompletedAppointments(completed);
+        setCancelledAppointments(cancelled);
+        setScheduledAppointments(scheduled);
         
         // Get upcoming appointments (next 7 days)
         const today = new Date();
         const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
         
-        const upcoming = appointmentsRes.documents.filter((appt: any) => {
+        const upcoming = allAppointments.filter((appt: any) => {
           const apptDate = new Date(appt.date);
-          return apptDate >= today && apptDate <= nextWeek;
+          return appt.status === "Scheduled" && apptDate >= today && apptDate <= nextWeek;
         }).slice(0, 3); // Only show 3 upcoming
         
         setUpcomingAppointments(upcoming);
@@ -65,6 +76,11 @@ const AdminDashboard = () => {
 
     fetchData();
   }, []);
+
+  // Calculate completion rate (completed vs cancelled)
+  const completionRate = cancelledAppointments > 0 
+    ? Math.round((completedAppointments / (completedAppointments + cancelledAppointments)) * 100)
+    : completedAppointments > 0 ? 100 : 0;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -79,7 +95,8 @@ const AdminDashboard = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {/* Total Students Card */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
@@ -92,6 +109,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
+            {/* Active Counselors Card */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
@@ -104,6 +122,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
+            {/* Total Appointments Card */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
@@ -115,9 +134,67 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* Completion Rate Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-600">{completionRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {completedAppointments} completed / {cancelledAppointments} cancelled
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50">
+                  <CheckCircle className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Second Row of Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Completed Appointments Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Completed</p>
+                  <p className="text-2xl font-bold mt-1 text-green-600">{completedAppointments}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-green-50">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Cancelled Appointments Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Cancelled</p>
+                  <p className="text-2xl font-bold mt-1 text-red-600">{cancelledAppointments}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-red-50">
+                  <XCircle className="w-6 h-6 text-red-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Scheduled Appointments Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Scheduled</p>
+                  <p className="text-2xl font-bold mt-1 text-yellow-600">{scheduledAppointments}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-yellow-50">
+                  <Clock className="w-6 h-6 text-yellow-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Rest of your existing content... */}
           <div className="flex justify-end mb-6 space-x-4">
             <Button
               onClick={() => router.push("/admin/counselors/register")}
@@ -180,15 +257,6 @@ const AdminDashboard = () => {
                 <p>No upcoming appointments</p>
               </div>
             )}
-          </div>
-
-          {/* Student List */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <UserRound className="w-5 h-5 mr-2 text-indigo-600" />
-              Recent Students
-            </h2>
-            <StudentList />
           </div>
         </div>
       </div>

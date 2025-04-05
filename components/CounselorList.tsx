@@ -1,235 +1,183 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Client, Databases, ID } from "appwrite";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Trash, Edit, CheckCircle, XCircle } from "lucide-react";
-
-const client = new Client()
-  .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
-  .setProject(process.env.NEXT_PUBLIC_PROJECT_ID!);
-
-const databases = new Databases(client);
-
-interface Counselor {
-  $id: string;
-  name: string;
-  email: string;
-  phone: string;
-  program: string;
-  areaOfExpertise: string;
-  role: string;
-  isActive: boolean;
-}
+import { useRouter } from "next/navigation";
+import ComboBox from "@/components/ComboBox";
+import StudentListPrintButton from "./StudentListButton";
+import { FaEnvelope } from "react-icons/fa";
+import EmailForm from "@/components/EmailForm";
 
 const CounselorList = () => {
-  const [counselors, setCounselors] = useState<Counselor[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [updatedName, setUpdatedName] = useState("");
-  const [updatedPhone, setUpdatedPhone] = useState("");
-  const [updatedProgram, setUpdatedProgram] = useState("");
-  const [updatedAreaOfExpertise, setUpdatedAreaOfExpertise] = useState("");
-  const [updatedRole, setUpdatedRole] = useState("");
-  const [updatedIsActive, setUpdatedIsActive] = useState(false);
-  const [message, setMessage] = useState("");
+  const [counselors, setCounselors] = useState<any[]>([]);
+  const [filteredCounselors, setFilteredCounselors] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState("");
+  const [currentPage, setCurrentPage] = useState(0);
+  const [emails, setEmails] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const counselorsPerPage = 5;
+  const router = useRouter();
 
   useEffect(() => {
+    const fetchCounselors = async () => {
+      try {
+        const response = await fetch("/api/counselors");
+        if (!response.ok) throw new Error("Failed to fetch counselors");
+        const data = await response.json();
+        setCounselors(data);
+      } catch (err) {
+        console.error("Error fetching counselors:", err);
+      }
+    };
+
     fetchCounselors();
   }, []);
 
-  const fetchCounselors = async () => {
-    try {
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!
+  useEffect(() => {
+    let filtered = counselors;
+
+    if (filterType) {
+      filtered = filtered.filter((counselor) =>
+        counselor[filterType]?.toString().toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setCounselors(response.documents as Counselor[]);
-    } catch (error) {
-      console.error("Error fetching counselors:", error);
-      setMessage("❌ Failed to fetch counselors.");
-    }
-  };
-
-  const handleEdit = (counselor: Counselor) => {
-    setEditingId(counselor.$id);
-    setUpdatedName(counselor.name);
-    setUpdatedPhone(counselor.phone);
-    setUpdatedProgram(counselor.program);
-    setUpdatedAreaOfExpertise(counselor.areaOfExpertise);
-    setUpdatedRole(counselor.role);
-    setUpdatedIsActive(counselor.isActive);
-  };
-
-  const handleUpdate = async (counselorId: string) => {
-    try {
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!,
-        counselorId,
-        {
-          name: updatedName,
-          phone: updatedPhone,
-          program: updatedProgram,
-          areaOfExpertise: updatedAreaOfExpertise,
-          role: updatedRole,
-          isActive: updatedIsActive,
-        }
+    } else if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (counselor) =>
+          counselor.name?.toLowerCase().includes(query) ||
+          counselor.email?.toLowerCase().includes(query) ||
+          counselor.areaOfExpertise?.toLowerCase().includes(query) ||
+          counselor.program?.toLowerCase().includes(query)
       );
-      setEditingId(null);
-      fetchCounselors();
-      setMessage("✅ Counselor updated successfully!");
-    } catch (error) {
-      console.error("Error updating counselor:", error);
-      setMessage("❌ Failed to update counselor.");
     }
-  };
 
-  const handleDelete = async (counselorId: string) => {
-    if (confirm("Are you sure you want to delete this counselor?")) {
-      try {
-        await databases.deleteDocument(
-          process.env.NEXT_PUBLIC_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!,
-          counselorId
-        );
-        fetchCounselors();
-        setMessage("✅ Counselor deleted successfully!");
-      } catch (error) {
-        console.error("Error deleting counselor:", error);
-        setMessage("❌ Failed to delete counselor.");
-      }
-    }
+    setFilteredCounselors(filtered);
+    setEmails(filtered.map((counselor) => counselor.email).filter(Boolean));
+    setCurrentPage(0);
+  }, [counselors, searchQuery, filterType]);
+
+  const startIndex = currentPage * counselorsPerPage;
+  const paginatedCounselors = filteredCounselors.slice(startIndex, startIndex + counselorsPerPage);
+
+  const handleCounselorClick = (counselorId: string) => {
+    setLoadingId(counselorId);
+    router.push(`/admin/counselors/${counselorId}`);
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Manage Counselors</h1>
-      {message && <p className="mb-4">{message}</p>}
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="p-2 border">Name</th>
-            <th className="p-2 border">Email</th>
-            <th className="p-2 border">Phone</th>
-            <th className="p-2 border">Program</th>
-            <th className="p-2 border">Area of Expertise</th>
-            <th className="p-2 border">Role</th>
-            <th className="p-2 border">Active</th>
-            <th className="p-2 border">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {counselors.map((counselor) => (
-            <tr key={counselor.$id} className="border">
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <Input
-                    type="text"
-                    value={updatedName}
-                    onChange={(e) => setUpdatedName(e.target.value)}
-                  />
-                ) : (
-                  counselor.name
-                )}
-              </td>
-              <td className="p-2 border">{counselor.email}</td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <Input
-                    type="text"
-                    value={updatedPhone}
-                    onChange={(e) => setUpdatedPhone(e.target.value)}
-                  />
-                ) : (
-                  counselor.phone
-                )}
-              </td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <Input
-                    type="text"
-                    value={updatedProgram}
-                    onChange={(e) => setUpdatedProgram(e.target.value)}
-                  />
-                ) : (
-                  counselor.program
-                )}
-              </td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <Input
-                    type="text"
-                    value={updatedAreaOfExpertise}
-                    onChange={(e) => setUpdatedAreaOfExpertise(e.target.value)}
-                  />
-                ) : (
-                  counselor.areaOfExpertise
-                )}
-              </td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <select
-                    value={updatedRole}
-                    onChange={(e) => setUpdatedRole(e.target.value)}
-                  >
-                    <option value="superAdmin">Super Admin</option>
-                    <option value="admin">Admin</option>
-                    <option value="counselor">Counselor</option>
-                  </select>
-                ) : (
-                  counselor.role
-                )}
-              </td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <input
-                    type="checkbox"
-                    checked={updatedIsActive}
-                    onChange={(e) => setUpdatedIsActive(e.target.checked)}
-                  />
-                ) : (
-                  counselor.isActive ? "Yes" : "No"
-                )}
-              </td>
-              <td className="p-2 border">
-                {editingId === counselor.$id ? (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => handleUpdate(counselor.$id)}
-                      className="bg-green-500 hover:bg-green-600"
+    <section className="counselor-list w-full px-6">
+      {/* Filters */}
+      <div className="flex flex-col items-center mb-4">
+        <StudentListPrintButton 
+          filteredStudents={filteredCounselors} 
+          filterType={filterType} 
+          view="employee" 
+        />
+        <div className="w-96 mt-2">
+          <ComboBox filterType={filterType} setFilterType={setFilterType} view="counselors" />
+        </div>
+        <input
+          type="text"
+          placeholder="Search by name, email, or expertise..."
+          className="w-96 p-3 border-2 border-blue-700 rounded-xl bg-white text-black shadow-sm mt-2 focus:outline-none"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
+      {/* Table */}
+      {filteredCounselors.length === 0 ? (
+        <p className="text-gray-400 text-center">No counselors found.</p>
+      ) : (
+        <div className="w-full overflow-x-auto rounded-lg border-2 border-blue-700">
+          <table className="w-full text-white shadow-lg">
+            <thead>
+              <tr className="bg-blue-700 text-left text-sm uppercase">
+                <th className="py-3 px-6">Name</th>
+                <th className="py-3 px-6">Email</th>
+                <th className="py-3 px-6">Program</th>
+                <th className="py-3 px-6">Expertise</th>
+                <th className="py-3 px-6">Status</th>
+                {filterType && <th className="py-3 px-6">{filterType.replace(/([A-Z])/g, " $1")}</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedCounselors.map((counselor) => (
+                <tr 
+                  key={counselor.$id} 
+                  className="bg-white text-black hover:bg-blue-400 hover:text-white transition"
+                >
+                  <td className="py-3 px-6">
+                    <button 
+                      onClick={() => handleCounselorClick(counselor.$id)} 
+                      className="text-blue-700 hover:text-white"
                     >
-                      <CheckCircle size={16} />
-                    </Button>
-                    <Button
-                      onClick={() => setEditingId(null)}
-                      className="bg-red-500 hover:bg-red-600"
-                    >
-                      <XCircle size={16} />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => handleEdit(counselor)}
-                      className="bg-blue-500 hover:bg-blue-600"
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(counselor.$id)}
-                      className="bg-red-500 hover:bg-red-600"
-                    >
-                      <Trash size={16} />
-                    </Button>
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                      {counselor.name}
+                      {loadingId === counselor.$id && <span className="ml-2 animate-spin">🔄</span>}
+                    </button>
+                  </td>
+                  <td className="py-3 px-6">{counselor.email}</td>
+                  <td className="py-3 px-6">{counselor.program}</td>
+                  <td className="py-3 px-6">{counselor.areaOfExpertise}</td>
+                  <td className="py-3 px-6">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      counselor.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {counselor.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  {filterType && <td className="py-3 px-6">{counselor[filterType] ?? "N/A"}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Email Modal */}
+      {emails.length > 0 && (
+        <div className="mt-4 flex justify-center">
+          <button 
+            onClick={() => setIsModalOpen(true)} 
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2"
+          >
+            <FaEnvelope /> Send Email to All
+          </button>
+        </div>
+      )}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-md max-w-md w-full">
+            <EmailForm studentEmail={emails.join(",")} />
+            <button 
+              onClick={() => setIsModalOpen(false)} 
+              className="mt-4 w-full bg-red-500 text-white py-2 rounded-lg"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div className="flex justify-center mt-4">
+        <button
+          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 0))}
+          className="px-4 py-2 mx-2 bg-gray-700 text-white rounded disabled:opacity-50"
+          disabled={currentPage === 0}
+        >
+          ← Prev
+        </button>
+        <button
+          onClick={() => setCurrentPage((prev) => (startIndex + counselorsPerPage < filteredCounselors.length ? prev + 1 : prev))}
+          className="px-4 py-2 mx-2 bg-green-400 text-white rounded disabled:opacity-50"
+          disabled={startIndex + counselorsPerPage >= filteredCounselors.length}
+        >
+          Next →
+        </button>
+      </div>
+    </section>
   );
 };
 

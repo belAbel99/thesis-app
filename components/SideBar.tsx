@@ -27,7 +27,7 @@ const SideBar = () => {
       icon: <ClipboardList className="w-5 h-5" />
     },
     {
-      label: "Students",
+      label: "Students and Counselors",
       href: "/admin/students",
       icon: <Users className="w-5 h-5" />
     },
