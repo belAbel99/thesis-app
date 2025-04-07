@@ -120,7 +120,6 @@ const StudentCalendarPage = () => {
 
   // Add state for available goals
 const [availableGoals, setAvailableGoals] = useState<any[]>([]);
-const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
 
 // Fetch goals when component mounts
 useEffect(() => {
@@ -132,8 +131,6 @@ useEffect(() => {
   };
   fetchGoals();
 }, [student]);
-
-
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -223,7 +220,7 @@ useEffect(() => {
           patientName: newAppointment.patientName,
           date: formattedDate,
           time: newAppointment.time,
-          reason: newAppointment.sessionNotes,
+          reason: newAppointment.sessionNotes, // Using sessionNotes as reason for backward compatibility
           status: newAppointment.status,
           userid: userId,
           program: student?.program || "",
@@ -231,8 +228,8 @@ useEffect(() => {
           followUpRequired: newAppointment.followUpRequired,
           sessionNotes: newAppointment.sessionNotes,
           duration: newAppointment.duration,
-          goals: selectedGoals, // Include selected goals
-          progressNotes: newAppointment.progressNotes
+          goals: newAppointment.goals, // Add goals
+          progressNotes: newAppointment.progressNotes // Add progress notes
         }
       );
       
@@ -245,8 +242,6 @@ useEffect(() => {
       // Close modal after a delay
       setTimeout(() => {
         setShowScheduleModal(false);
-        setSelectedGoals([]); // Reset selected goals
-
       }, 2000);
       
     } catch (error) {
