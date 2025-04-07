@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, Briefcase, Users, Calendar, Pill, Stethoscope, ClipboardList, Home } from "lucide-react";
+import { Menu, X, Briefcase, Users, Calendar, ClipboardList, Home, BarChart2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,11 @@ const SideBar = () => {
       label: "Add A Program",
       href: "/admin/program",
       icon: <Briefcase className="w-5 h-5" />
+    },
+    {
+      label: "Reports",
+      href: "/counselor/reports",
+      icon: <BarChart2 className="w-5 h-5" />
     }
   ];
 

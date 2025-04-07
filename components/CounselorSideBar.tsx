@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, Calendar, ClipboardList, Home, LogOut, Users, TrendingUp } from "lucide-react";
+import { Menu, X, Calendar, ClipboardList, Home, LogOut, TrendingUp, BarChart2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,11 @@ const CounselorSideBar = () => {
       href: "/admin/counselors/calendar",
       icon: <Calendar className="w-5 h-5" />,
     },
+    {
+      label: "Reports",
+      href: "/admin/counselors/reports",
+      icon: <BarChart2 className="w-5 h-5" />
+    }
   ];
 
   return (
