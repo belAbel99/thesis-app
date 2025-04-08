@@ -38,7 +38,7 @@ const SideBar = () => {
     },
     {
       label: "Reports",
-      href: "/counselor/reports",
+      href: "/admin/reports",
       icon: <BarChart2 className="w-5 h-5" />
     }
   ];
