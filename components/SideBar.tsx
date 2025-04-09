@@ -40,6 +40,11 @@ const SideBar = () => {
       label: "Reports",
       href: "/admin/reports",
       icon: <BarChart2 className="w-5 h-5" />
+    },
+    {
+      label: "QR Scanner",
+      href: "/admin/qr-scanner",
+      icon: <BarChart2 className="w-5 h-5" />
     }
   ];
 

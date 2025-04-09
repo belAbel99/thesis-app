@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProfileBadge } from "@/components/ProfileBadge";
 import { getStudentGoals } from "@/lib/actions/progress.actions";
 import { Checkbox } from "@/components/ui/checkbox"; // Add this line
+import { generateQRCode } from "@/lib/actions/qr.actions";
+import { QRCodeDisplay } from "@/components/QRCodeDisplay";
+
 
 interface Appointment {
   $id: string;
@@ -70,6 +73,12 @@ const StudentCalendarPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<{
+    qrCodeUrl: string;
+    appointmentId: string;
+  } | null>(null);
+
 
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -199,58 +208,90 @@ useEffect(() => {
   };
 
   // Function to handle appointment submission
-  const handleSubmitAppointment = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmitAppointment = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!schedulingDate) return;
+  
+  setIsSubmitting(true);
+  setSubmitError("");
+  
+  try {
+    const formattedDate = format(schedulingDate, 'yyyy-MM-dd');
     
-    if (!schedulingDate) return;
-    
-    setIsSubmitting(true);
-    setSubmitError("");
-    
-    try {
-      // Format the date as YYYY-MM-DD
-      const formattedDate = format(schedulingDate, 'yyyy-MM-dd');
-      
-      // Create the appointment in the database
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_DATABASE_ID!,
-        "6734ba2700064c66818e", // Using the hardcoded appointment collection ID
-        ID.unique(),
-        {
-          patientName: newAppointment.patientName,
+    // Create the appointment
+    const appointment = await databases.createDocument(
+      process.env.NEXT_PUBLIC_DATABASE_ID!,
+      "6734ba2700064c66818e",
+      ID.unique(),
+      {
+        patientName: newAppointment.patientName,
+        date: formattedDate,
+        time: newAppointment.time,
+        reason: newAppointment.sessionNotes,
+        status: newAppointment.status,
+        userid: userId,
+        program: student?.program || "",
+        concernType: newAppointment.concernType,
+        followUpRequired: newAppointment.followUpRequired,
+        sessionNotes: newAppointment.sessionNotes,
+        duration: newAppointment.duration,
+        goals: newAppointment.goals,
+        progressNotes: newAppointment.progressNotes
+      }
+    );
+
+    // Generate QR code for this appointment
+    const qrCodeUrl = await generateQRCode({
+      appointmentId: appointment.$id,
+      studentId: userId,
+      date: formattedDate,
+      time: newAppointment.time
+    });
+
+    // Update appointment with QR code URL
+    await databases.updateDocument(
+      process.env.NEXT_PUBLIC_DATABASE_ID!,
+      "6734ba2700064c66818e",
+      appointment.$id,
+      { qrCodeUrl }
+    );
+
+    // Store QR code data in appointmentQrCodes collection
+    await databases.createDocument(
+      process.env.NEXT_PUBLIC_DATABASE_ID!,
+      "67f2970e00143006a1fb", // appointmentQrCodes collection
+      ID.unique(),
+      {
+        appointmentId: appointment.$id,
+        studentId: userId,
+        qrCodeData: JSON.stringify({
+          appointmentId: appointment.$id,
+          studentId: userId,
           date: formattedDate,
-          time: newAppointment.time,
-          reason: newAppointment.sessionNotes, // Using sessionNotes as reason for backward compatibility
-          status: newAppointment.status,
-          userid: userId,
-          program: student?.program || "",
-          concernType: newAppointment.concernType,
-          followUpRequired: newAppointment.followUpRequired,
-          sessionNotes: newAppointment.sessionNotes,
-          duration: newAppointment.duration,
-          goals: newAppointment.goals, // Add goals
-          progressNotes: newAppointment.progressNotes // Add progress notes
-        }
-      );
-      
-      // Show success message
-      setSubmitSuccess(true);
-      
-      // Refresh appointments
-      fetchAppointments();
-      
-      // Close modal after a delay
-      setTimeout(() => {
-        setShowScheduleModal(false);
-      }, 2000);
-      
-    } catch (error) {
-      console.error("Error creating appointment:", error);
-      setSubmitError("Failed to create appointment. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+          time: newAppointment.time
+        }),
+        qrCodeImage: qrCodeUrl,
+        status: "generated",
+        qrCodeUrl
+      }
+    );
+
+    setSubmitSuccess(true);
+    setQrCodeData({
+      qrCodeUrl,
+      appointmentId: appointment.$id
+    });
+    setShowQRModal(true);
+    fetchAppointments();
+    
+  } catch (error) {
+    console.error("Error creating appointment:", error);
+    setSubmitError("Failed to create appointment. Please try again.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const renderDayView = () => {
     if (!selectedDate) return null;
@@ -556,144 +597,157 @@ const renderScheduleModal = () => {
   );
 };
 
-  return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <StudentSideBar userId={userId} />
+return (
+  <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+    <StudentSideBar userId={userId} />
+      
+    {/* Main Content */}
+    <div className="flex-1 p-8 overflow-y-auto">
+      <div className="max-w-7xl mx-auto">
         
-        {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-7xl mx-auto">
-          
-          {/* Header Section */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-blue-700">My Calendar</h1>
-            <p className="text-gray-600 mt-2">View and schedule your appointments</p>
-            {student && <p className="text-gray-600">Welcome, {student.name}</p>}
-          </div>
+        {/* Header Section */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-blue-700">My Calendar</h1>
+          <p className="text-gray-600 mt-2">View and schedule your appointments</p>
+          {student && <p className="text-gray-600">Welcome, {student.name}</p>}
+        </div>
 
-          {/* Calendar Container */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            {view === 'month' ? (
-              <div className="p-6">
-                {/* Month Navigation */}
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-2xl font-semibold text-gray-800">
-                    {format(currentDate, 'MMMM yyyy')}
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={previousMonth} 
-                      className="text-black bg-white"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </Button>
+        {/* Calendar Container */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          {view === 'month' ? (
+            <div className="p-6">
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-semibold text-gray-800">
+                  {format(currentDate, 'MMMM yyyy')}
+                </h2>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={previousMonth} 
+                    className="text-black bg-white"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
 
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setCurrentDate(new Date())} 
-                      className="text-black bg-white"
-                    >
-                      Today
-                    </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCurrentDate(new Date())} 
+                    className="text-black bg-white"
+                  >
+                    Today
+                  </Button>
 
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={nextMonth} 
-                      className="text-black bg-white"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-1">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="bg-gray-50 p-3 text-center text-sm font-semibold text-gray-600">
-                      {day}
-                    </div>
-                  ))}
-                  
-                  {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
-                    <div key={`empty-${i}`} className="bg-white p-3 h-32" />
-                  ))}
-                  
-                  {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
-                    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
-                    const dayAppointments = appointments.filter(appointment => {
-                      const appointmentDate = new Date(appointment.date);
-                      return appointmentDate.toDateString() === date.toDateString();
-                    });
-                    const isToday = date.toDateString() === new Date().toDateString();
-
-                    return (
-                      <div
-                        key={i}
-                        className={`bg-white p-3 h-32 hover:bg-gray-50 cursor-pointer border-t ${
-                          isToday ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <div 
-                          className={`font-medium ${
-                            isToday ? 'text-blue-600' : 'text-gray-700'
-                          }`}
-                          onClick={() => {
-                            setSelectedDate(date);
-                            setView('day');
-                          }}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="mt-2 space-y-1">
-                          {dayAppointments.slice(0, 2).map(appointment => (
-                            <div
-                              key={appointment.$id}
-                              className={`text-xs p-1.5 rounded-md ${getStatusColor(appointment.status)}`}
-                              onClick={() => {
-                                setSelectedDate(date);
-                                setView('day');
-                              }}
-                            >
-                              {appointment.time} - {appointment.patientName}
-                            </div>
-                          ))}
-                          {dayAppointments.length > 2 && (
-                            <div 
-                              className="text-xs font-medium text-gray-500 pl-1"
-                              onClick={() => {
-                                setSelectedDate(date);
-                                setView('day');
-                              }}
-                            >
-                              +{dayAppointments.length - 2} more
-                            </div>
-                          )}
-                          <div 
-                            className="mt-1 text-xs text-blue-600 hover:underline cursor-pointer"
-                            onClick={() => handleScheduleClick(date)}
-                          >
-                            + Add appointment
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={nextMonth} 
+                    className="text-black bg-white"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
-            ) : (
-              renderDayView()
-            )}
-          </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="bg-gray-50 p-3 text-center text-sm font-semibold text-gray-600">
+                    {day}
+                  </div>
+                ))}
+                
+                {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, i) => (
+                  <div key={`empty-${i}`} className="bg-white p-3 h-32" />
+                ))}
+                
+                {Array.from({ length: getDaysInMonth(currentDate) }).map((_, i) => {
+                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
+                  const dayAppointments = appointments.filter(appointment => {
+                    const appointmentDate = new Date(appointment.date);
+                    return appointmentDate.toDateString() === date.toDateString();
+                  });
+                  const isToday = date.toDateString() === new Date().toDateString();
+
+                  return (
+                    <div
+                      key={i}
+                      className={`bg-white p-3 h-32 hover:bg-gray-50 cursor-pointer border-t ${
+                        isToday ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div 
+                        className={`font-medium ${
+                          isToday ? 'text-blue-600' : 'text-gray-700'
+                        }`}
+                        onClick={() => {
+                          setSelectedDate(date);
+                          setView('day');
+                        }}
+                      >
+                        {i + 1}
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {dayAppointments.slice(0, 2).map(appointment => (
+                          <div
+                            key={appointment.$id}
+                            className={`text-xs p-1.5 rounded-md ${getStatusColor(appointment.status)}`}
+                            onClick={() => {
+                              setSelectedDate(date);
+                              setView('day');
+                            }}
+                          >
+                            {appointment.time} - {appointment.patientName}
+                          </div>
+                        ))}
+                        {dayAppointments.length > 2 && (
+                          <div 
+                            className="text-xs font-medium text-gray-500 pl-1"
+                            onClick={() => {
+                              setSelectedDate(date);
+                              setView('day');
+                            }}
+                          >
+                            +{dayAppointments.length - 2} more
+                          </div>
+                        )}
+                        <div 
+                          className="mt-1 text-xs text-blue-600 hover:underline cursor-pointer"
+                          onClick={() => handleScheduleClick(date)}
+                        >
+                          + Add appointment
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            renderDayView()
+          )}
         </div>
       </div>
-      
-      {/* Render the schedule modal */}
-      {renderScheduleModal()}
     </div>
-  );
-};
+    
+    {/* Render the schedule modal */}
+    {renderScheduleModal()}
+
+    {/* QR Code Modal */}
+    {showQRModal && qrCodeData && (
+      <QRCodeDisplay
+        qrCodeUrl={qrCodeData.qrCodeUrl}
+        appointmentDetails={{
+          date: newAppointment.date,
+          time: newAppointment.time,
+          reason: newAppointment.sessionNotes
+        }}
+        onClose={() => setShowQRModal(false)}
+      />
+    )}
+  </div>
+);
+}
 
 export default StudentCalendarPage; 
