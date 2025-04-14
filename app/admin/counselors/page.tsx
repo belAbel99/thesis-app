@@ -9,8 +9,8 @@ import { logoutCounselor } from "@/lib/actions/counselor.actions";
 import CounselorSideBar from "@/components/CounselorSideBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Calendar, UserRound, Stethoscope, CheckCircle } from "lucide-react";
-import { Client, Databases, Query } from "appwrite";
+import { Search, Calendar, UserRound, Stethoscope, CheckCircle, Bell, X } from "lucide-react";
+import { Client, Databases, Query, ID } from "appwrite";
 
 const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -28,6 +28,10 @@ const CounselorDashboardPage = () => {
     completedAppointments: 0
   });
   const [counselorProgram, setCounselorProgram] = useState("");
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [counselorId, setCounselorId] = useState("");
 
   // Fetch session and data assigned to the counselor
   useEffect(() => {
@@ -52,6 +56,7 @@ const CounselorDashboardPage = () => {
         }
 
         setCounselorProgram(session.program);
+        setCounselorId(session.counselorId);
 
         // Fetch students ONLY for the counselor's program
         const students = await getStudentsByCounselorId(session.counselorId, session.program, 10, 0);
@@ -65,7 +70,7 @@ const CounselorDashboardPage = () => {
             [
               Query.equal("program", [session.program]),
               Query.equal("status", ["Scheduled"]),
-              Query.limit(1000) // Adjust based on your needs
+              Query.limit(1000)
             ]
           ),
           databases.listDocuments(
@@ -74,7 +79,7 @@ const CounselorDashboardPage = () => {
             [
               Query.equal("program", [session.program]),
               Query.equal("status", ["Completed"]),
-              Query.limit(1000) // Adjust based on your needs
+              Query.limit(1000)
             ]
           )
         ]);
@@ -85,6 +90,20 @@ const CounselorDashboardPage = () => {
           completedAppointments: completedRes.documents.length
         });
 
+        // Fetch notifications
+        const notificationRes = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID!,
+          [
+            Query.equal("counselorId", [session.counselorId]),
+            Query.orderDesc("createdAt"),
+            Query.limit(10)
+          ]
+        );
+        
+        setNotifications(notificationRes.documents);
+        setUnreadCount(notificationRes.documents.filter((n: any) => !n.read).length);
+
       } catch (error) {
         console.error("Error fetching data:", error);
         router.push("/admin/counselors/login");
@@ -92,7 +111,26 @@ const CounselorDashboardPage = () => {
     };
 
     fetchSessionAndData();
-  }, [router]);
+
+    // Set up real-time subscription for notifications
+    const unsubscribe = client.subscribe(
+      `collections.${process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID}.documents`,
+      (response) => {
+        if (response.events.includes(`databases.*.collections.*.documents.*.create`)) {
+          // New notification added
+          const newNotification = response.payload;
+          if (newNotification.counselorId === counselorId) {
+            setNotifications(prev => [newNotification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+          }
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [router, counselorId]);
 
   // Filter students based on search term
   const filteredStudents = students.filter((student) =>
@@ -101,6 +139,67 @@ const CounselorDashboardPage = () => {
     student.yearLevel.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID!,
+        notificationId,
+        { read: true }
+      );
+      
+      setNotifications(notifications.map(n => 
+        n.$id === notificationId ? {...n, read: true} : n
+      ));
+      setUnreadCount(unreadCount - 1);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      await Promise.all(
+        unreadNotifications.map(n => 
+          databases.updateDocument(
+            process.env.NEXT_PUBLIC_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID!,
+            n.$id,
+            { read: true }
+          )
+        )
+      );
+      setNotifications(notifications.map(n => ({...n, read: true})));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
+  const handleNotificationClick = async (notification: any) => {
+    // Mark as read
+    await markNotificationAsRead(notification.$id);
+    
+    // Redirect to appointment page
+    if (notification.redirectUrl) {
+      router.push(notification.redirectUrl);
+    }
+  };
+  
+  // In the notification dropdown UI:
+  {notifications.map((notification) => (
+    <div 
+      key={notification.$id} 
+      className={`p-4 border-b hover:bg-gray-50 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
+      onClick={() => handleNotificationClick(notification)}
+    >
+      <p className="text-sm">{notification.message}</p>
+      <p className="text-xs text-gray-500 mt-1">
+        {new Date(notification.createdAt).toLocaleString()}
+      </p>
+    </div>
+  ))}
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <CounselorSideBar />
@@ -108,9 +207,69 @@ const CounselorDashboardPage = () => {
       <div className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-blue-700">Counselor Dashboard</h1>
-            <p className="text-gray-600 mt-2">Program: {counselorProgram}</p>
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-blue-700">Counselor Dashboard</h1>
+              <p className="text-gray-600 mt-2">Program: {counselorProgram}</p>
+            </div>
+            
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 rounded-full hover:bg-gray-100 relative"
+              >
+                <Bell className="w-5 h-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notifications Dropdown */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                  <div className="p-4 border-b flex justify-between items-center">
+                    <h3 className="font-medium text-black">Notifications</h3>
+                    <button 
+                      onClick={() => setShowNotifications(false)}
+                      className="text-black hover:text-black"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="p-4 text-sm text-gray-500">No notifications</p>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div 
+                          key={notification.$id} 
+                          className={`text-black p-4 border-b hover:bg-gray-50 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
+                          onClick={() => markNotificationAsRead(notification.$id)}
+                        >
+                          <p className="text-sm text-black">{notification.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(notification.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <div className="p-2 border-t text-center">
+                      <button 
+                        className="text-sm text-blue-600 hover:underline"
+                        onClick={markAllAsRead}
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats Cards */}

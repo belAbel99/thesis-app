@@ -3,16 +3,20 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Tabs = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col", className)}
-    {...props}
-  />
-));
+interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
+  ({ className, value, onValueChange, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("flex flex-col", className)}
+      {...props}
+    />
+  )
+);
 Tabs.displayName = "Tabs";
 
 const TabsList = React.forwardRef<
@@ -32,8 +36,8 @@ TabsList.displayName = "TabsList";
 
 const TabsTrigger = React.forwardRef<
   HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ className, ...props }, ref) => (
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }
+>(({ className, value, ...props }, ref) => (
   <button
     ref={ref}
     className={cn(
@@ -48,8 +52,8 @@ TabsTrigger.displayName = "TabsTrigger";
 
 const TabsContent = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { value: string }
+>(({ className, value, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(

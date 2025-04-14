@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Form, FormControl } from "@/components/ui/form";
+import { Form, FormControl,FormField, FormItem, FormLabel, FormMessage  } from "@/components/ui/form";
 import CustomFormField from "../ui/CustomFormField";
 import { useState } from "react";
 import SubmitButton from "../SubmitButton";
@@ -11,13 +11,14 @@ import { useRouter } from "next/navigation";
 import { registerPatient } from "@/lib/actions/patient.actions";
 import { FormFieldType } from "./PatientForms";
 import { RadioGroup, RadioGroupItem } from "@radix-ui/react-radio-group";
-import { GenderOptions, IdentificationTypes } from "@/constants";
+import { GenderOptions } from "@/constants";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import FileUploader from "../FileUploader";
 import { useEffect } from "react";
 import SuccessMessage from "../SuccessMessage";
-import { Client, Databases } from "appwrite";
+import SignaturePad from "../SignaturePad";
+import { Client, Databases, ID } from "appwrite";
 import { useSearchParams } from "next/navigation";
 
 // Load environment variables
@@ -57,6 +58,10 @@ const GuidanceFormValidation = z.object({
   identificationNumber: z.string().min(1, "Identification number is required"),
   identificationDocument: z.any().optional(),
   treatmentConsent: z.boolean().refine((val) => val === true, "You must consent to the privacy policy"),
+  privacyConsent: z.boolean().refine(val => val === true, "You must consent to the privacy policy"),
+  disclosureConsent: z.boolean().refine(val => val === true, "You must consent to information disclosure"),
+  signatureData: z.string().min(1, "Signature is required"),
+  signatureDate: z.date(),
 });
 
 const RegisterForm = ({ user }: { user: User }) => {
@@ -65,6 +70,7 @@ const RegisterForm = ({ user }: { user: User }) => {
   const [successMessage, setSuccessMessage] = useState("");
   const [programTypes, setProgramTypes] = useState<string[]>([]);
   const [counselors, setCounselors] = useState<any[]>([]);
+  const [message, setMessage] = useState<string>(""); // Add state for error messages
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email") || "";
 
@@ -126,77 +132,75 @@ const RegisterForm = ({ user }: { user: User }) => {
     fetchProgramTypes();
     fetchCounselors();
   }, []);
-
   async function onSubmit(values: z.infer<typeof GuidanceFormValidation>) {
     setIsLoading(true);
-    let formData;
-  
-    if (values.identificationDocument?.length > 0) {
-      const blobFile = new Blob([values.identificationDocument[0]], {
-        type: values.identificationDocument[0].type,
-      });
-      formData = new FormData();
-      formData.append("blobFile", blobFile);
-      formData.append("fileName", values.identificationDocument[0].name);
-    }
+    setSuccessMessage(""); // Reset any existing messages
+    setMessage(""); // Reset error messages
   
     try {
-      // Find a counselor for the student's program
-      const counselor = counselors.find((c) => c.program === values.program);
-  
-      if (!counselor) {
-        throw new Error("No counselor available for this program. Please contact the admin.");
+      // Prepare form data (existing code)
+      let formData;
+      if (values.identificationDocument?.length > 0) {
+        const blobFile = new Blob([values.identificationDocument[0]], {
+          type: values.identificationDocument[0].type,
+        });
+        formData = new FormData();
+        formData.append("blobFile", blobFile);
+        formData.append("fileName", values.identificationDocument[0].name);
       }
   
+      // Find counselor (existing code)
+      const counselor = counselors.find((c) => c.program === values.program);
+      if (!counselor) {
+        throw new Error("No counselor available for this program.");
+      }
+  
+      // Prepare patient data
       const patientData = {
         ...values,
         userId: user.$id,
         birthDate: new Date(values.birthDate),
         identificationDocument: formData,
-        civilStatus: values.civilStatus,
-        scholarship: values.scholarship,
-        counselorId: counselor.$id, // Assign the counselor ID to the student
-        program: values.program, // Ensure the program field is included
+        counselorId: counselor.$id,
+        program: values.program,
+        signatureData: values.signatureData,
+        signatureDate: new Date(),
+        privacyConsent: values.privacyConsent,
+        disclosureConsent: values.disclosureConsent,
       };
   
-      // Save student data to the `patient` collection
+      // Register patient
       const patient = await registerPatient(patientData);
+      console.log("Registration successful, patient ID:", patient.$id);
   
-      if (patient) {
-        // Create a referral record
-        const referralData = {
+      // Create referral
+      const client = new Client().setEndpoint(ENDPOINT).setProject(PROJECT_ID);
+      const databases = new Databases(client);
+      await databases.createDocument(
+        DATABASE_ID,
+        REFERRALS_COLLECTION_ID,
+        ID.unique(),
+        {
           studentId: patient.$id,
           counselorId: counselor.$id,
           program: values.program,
           date: new Date().toISOString(),
           status: "Pending",
-        };
+        }
+      );
   
-        const client = new Client()
-          .setEndpoint(ENDPOINT)
-          .setProject(PROJECT_ID);
-  
-        const databases = new Databases(client);
-  
-        await databases.createDocument(
-          DATABASE_ID,
-          REFERRALS_COLLECTION_ID,
-          ID.unique(),
-          referralData
-        );
-  
-        form.reset();
-        setSuccessMessage("Registration successful! You have been registered successfully.");
-        router.push(`/patients/${patient.$id}/student`);
-      }
-              // Debugging: Log the patient ID and redirect path
-              console.log("Patient ID:", patient.$id);
-              console.log("Redirecting to student dashboard...");
-              router.push(`/patients/${patient.$id}/student`);
-              
+      // Show success message
+      setSuccessMessage("Registration successful! Redirecting...");
+      
+      // Wait a moment to ensure message is seen
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Then redirect
+      router.push(`/patients/${patient.$id}/student`);
+      
     } catch (error) {
-      console.error("Error registering student:", error);
-      setMessage("❌ Failed to register student. No counselor available for this program.");
+      console.error("Registration error:", error);
+      setMessage(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -563,9 +567,71 @@ const RegisterForm = ({ user }: { user: User }) => {
         </div>
 
         <section className="space-y-6">
-          <div className="mb-9 space-y-1">
-            <h2 className="sub-header text-blue-700">Consent and Privacy</h2>
+        <div className="space-y-6">
+          <h3 className="font-large text-bold">Consent and Privacy</h3>
+  
+        <div className="grid gap-4">
+          <div className="p-4 border rounded-lg bg-gray-50">
+            <h4 className="font-medium mb-2">Privacy Policy Consent</h4>
+            <p className="text-sm mb-4">
+              I consent to the collection, use, and disclosure of my personal information 
+              in accordance with the university privacy policy for counseling services.
+            </p>
+            <CustomFormField
+              fieldType={FormFieldType.CHECKBOX}
+              control={form.control}
+              name="privacyConsent"
+              label="I consent to the privacy policy"
+              required={true}
+            />
           </div>
+
+          <div className="p-4 border rounded-lg bg-gray-50">
+            <h4 className="font-medium mb-2">Information Disclosure Consent</h4>
+            <p className="text-sm mb-4">
+              I consent to the disclosure of relevant information to university staff 
+              when necessary for my academic support and counseling services.
+            </p>
+            <CustomFormField
+              fieldType={FormFieldType.CHECKBOX}
+              control={form.control}
+              name="disclosureConsent"
+              label="I consent to information disclosure"
+              required={true}
+            />
+          </div>
+
+          <div className="p-4 border rounded-lg bg-gray-50">
+              <h4 className="font-medium mb-2">Electronic Signature</h4>
+              <p className="text-sm mb-4">
+                Please provide your signature to confirm your consent to the above policies.
+              </p>
+              <FormField
+                control={form.control}
+                name="signatureData"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Your Signature</FormLabel>
+                    <FormControl>
+                      <SignaturePad 
+                        onSave={field.onChange} 
+                        value={field.value}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            <CustomFormField
+              fieldType={FormFieldType.DATE_PICKER}
+              control={form.control}
+              name="signatureDate"
+              label="Date Signed"
+              required={true}
+            />
+          </div>
+        </div>
+        </div>
         </section>
 
         <div className="text-black space-y-9">

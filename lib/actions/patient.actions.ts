@@ -49,10 +49,24 @@ export const getUser = async (userId: string) => {
   }
 };
 
-export const registerPatient = async ({ identificationDocument, program, ...patient }: RegisterUserParams & { program: string }) => {
+export const registerPatient = async ({ 
+  identificationDocument, 
+  program, 
+  signatureData, // This is now the base64 image data
+  signatureDate,
+  privacyConsent,
+  disclosureConsent,
+  ...patient 
+}: RegisterUserParams & { 
+  program: string;
+  signatureData: string;
+  signatureDate: Date;
+  privacyConsent: boolean;
+  disclosureConsent: boolean;
+}) => {
   try {
+    // Handle identification document upload (existing code)
     let file;
-
     if (identificationDocument) {
       const blobFile = identificationDocument.get("blobFile") as Blob;
       const fileName = identificationDocument.get("fileName") as string;
@@ -67,10 +81,32 @@ export const registerPatient = async ({ identificationDocument, program, ...pati
       file = await storage.createFile(BUCKET_ID!, ID.unique(), inputFile);
     }
 
-    // Construct the full name
+    // Handle signature upload (new code)
+    let signatureFileId = null;
+    if (signatureData) {
+      // Convert base64 to blob
+      const byteString = atob(signatureData.split(',')[1]);
+      const mimeString = signatureData.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+
+      const blob = new Blob([ab], { type: mimeString });
+      const signatureFile = await storage.createFile(
+        BUCKET_ID!,
+        ID.unique(),
+        InputFile.fromBuffer(Buffer.from(await blob.arrayBuffer()), `signature-${Date.now()}.png`)
+      );
+      signatureFileId = signatureFile.$id;
+    }
+
+    // Construct full name
     const fullName = `${patient.firstName} ${patient.middleName ? patient.middleName + " " : ""}${patient.lastName} ${patient.suffix ? patient.suffix : ""}`.trim();
 
-    // Create the patient document
+    // Create patient document
     const newPatient = await databases.createDocument(
       DATABASE_ID!,
       PATIENT_COLLECTION_ID!,
@@ -78,12 +114,16 @@ export const registerPatient = async ({ identificationDocument, program, ...pati
       {
         ...patient,
         name: fullName,
-        program, // Ensure the program field is included
+        program,
         identificationDocumentId: file?.$id || null,
         identificationDocumentUrl: file
           ? `${ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${file.$id}/view?project=${PROJECT_ID}`
           : null,
-        counselorId: patient.counselorId, // Include the counselorId if available
+        counselorId: patient.counselorId,
+        privacyConsent,
+        disclosureConsent,
+        signatureFileId, // Store the file ID reference
+        signatureDate: signatureDate.toISOString(),
       }
     );
 

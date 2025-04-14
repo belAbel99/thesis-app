@@ -4,10 +4,26 @@ import { useEffect, useState } from "react";
 import { Client, Databases } from "appwrite";
 import { useParams } from "next/navigation";
 import StudentSideBar from "@/components/StudentSideBar";
-import { Search } from "lucide-react";
+import { Search, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ProfileBadge } from "@/components/ProfileBadge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Appointment {
   $id: string;
@@ -15,7 +31,7 @@ interface Appointment {
   date: string;
   time: string;
   reason: string;
-  status: "Scheduled" | "Completed" | "Cancelled";
+  status: "Scheduled" | "Completed" | "Cancelled" | "Pending";
   userid: string;
   program: string;
   concernType: "Academic" | "Career" | "Personal" | "Crisis";
@@ -33,6 +49,12 @@ const StudentAppointmentsPage = () => {
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedAppointments, setExpandedAppointments] = useState<Set<string>>(new Set());
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<string>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -60,21 +82,81 @@ const StudentAppointmentsPage = () => {
           followUpRequired: doc.followUpRequired || false
         }));
       setAppointments(userAppointments as Appointment[]);
-      setFilteredAppointments(userAppointments as Appointment[]);
+      applyFiltersAndSort(userAppointments as Appointment[]);
     } catch (error) {
       console.error("Error fetching appointments:", error);
     }
   };
 
-  useEffect(() => {
-    const filtered = appointments.filter(appointment =>
-      appointment.sessionNotes.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.date.includes(searchTerm) ||
-      appointment.concernType.toLowerCase().includes(searchTerm.toLowerCase()
-    ));
-      
+  const applyFiltersAndSort = (appointmentsToFilter: Appointment[]) => {
+    let filtered = [...appointmentsToFilter];
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(appointment => appointment.status === statusFilter);
+    }
+
+    // Apply search term
+    if (searchTerm) {
+      filtered = filtered.filter(appointment =>
+        appointment.sessionNotes.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        appointment.date.includes(searchTerm) ||
+        appointment.concernType.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case "date":
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case "status":
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case "concernType":
+          comparison = a.concernType.localeCompare(b.concernType);
+          break;
+        case "duration":
+          comparison = a.duration - b.duration;
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
     setFilteredAppointments(filtered);
-  }, [searchTerm, appointments]);
+  };
+
+  useEffect(() => {
+    applyFiltersAndSort(appointments);
+  }, [searchTerm, statusFilter, sortField, sortDirection, appointments]);
+
+  const handleCancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+    
+    try {
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        "6734ba2700064c66818e",
+        appointmentToCancel,
+        { 
+          status: "Cancelled",
+          cancellationReason 
+        }
+      );
+      fetchAppointments();
+      setIsCancelDialogOpen(false);
+      setAppointmentToCancel(null);
+      setCancellationReason("");
+    } catch (error) {
+      console.error("Error cancelling appointment:", error);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -84,6 +166,8 @@ const StudentAppointmentsPage = () => {
         return "bg-green-100 text-green-700";
       case "Cancelled":
         return "bg-red-100 text-red-700";
+      case "Pending":
+        return "bg-yellow-100 text-yellow-700";
       default:
         return "bg-gray-100 text-gray-700";
     }
@@ -109,6 +193,13 @@ const StudentAppointmentsPage = () => {
     setExpandedAppointments(newSet);
   };
 
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setSearchTerm("");
+    setSortField("date");
+    setSortDirection("desc");
+  };
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <StudentSideBar userId={params.userId as string} />
@@ -123,8 +214,8 @@ const StudentAppointmentsPage = () => {
 
           {/* Search and Filters */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1 max-w-xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <Input
                   type="text"
@@ -133,6 +224,52 @@ const StudentAppointmentsPage = () => {
                   placeholder="Search by notes, date, or concern type..."
                   className="pl-10 pr-4 py-2 w-full"
                 />
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="w-full md:w-auto">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[180px] text-black">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent className="text-black bg-white">
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="Scheduled">Scheduled</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="w-full md:w-auto">
+                  <Select 
+                    value={`${sortField}-${sortDirection}`}
+                    onValueChange={(value) => {
+                      const [field, direction] = value.split('-');
+                      setSortField(field);
+                      setSortDirection(direction as "asc" | "desc");
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px] text-black">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent className="text-black">
+                      <SelectItem value="date-desc">Date (Newest first)</SelectItem>
+                      <SelectItem value="date-asc">Date (Oldest first)</SelectItem>
+                      <SelectItem value="status-asc">Status (A-Z)</SelectItem>
+                      <SelectItem value="status-desc">Status (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="ml-auto text-black"
+                >
+                  Clear Filters
+                </Button>
               </div>
             </div>
           </div>
@@ -180,15 +317,30 @@ const StudentAppointmentsPage = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button 
-                            className="text-indigo-600 hover:text-indigo-900"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleAppointmentExpansion(appointment.$id);
-                            }}
-                          >
-                            {expandedAppointments.has(appointment.$id) ? 'Hide' : 'View'} details
-                          </button>
+                          <div className="flex gap-2 justify-end">
+                            {appointment.status === "Scheduled" || appointment.status === "Pending" ? (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAppointmentToCancel(appointment.$id);
+                                  setIsCancelDialogOpen(true);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            ) : null}
+                            <button 
+                              className="text-indigo-600 hover:text-indigo-900"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleAppointmentExpansion(appointment.$id);
+                              }}
+                            >
+                              {expandedAppointments.has(appointment.$id) ? 'Hide' : 'View'} details
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       {expandedAppointments.has(appointment.$id) && (
@@ -228,6 +380,40 @@ const StudentAppointmentsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancel Appointment Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Appointment</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for cancelling this appointment.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Enter your reason for cancellation..."
+            value={cancellationReason}
+            onChange={(e) => setCancellationReason(e.target.value)}
+            required
+          />
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsCancelDialogOpen(false)}
+              className="border-gray-300 hover:bg-gray-50"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleCancelAppointment}
+              disabled={!cancellationReason}
+            >
+              Confirm Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Client, Databases, ID, Models } from "appwrite";
+import { Client, Databases, ID, Models, Query } from "appwrite";
 import { useParams } from "next/navigation";
 import StudentSideBar from "@/components/StudentSideBar";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -208,46 +208,64 @@ useEffect(() => {
   };
 
   // Function to handle appointment submission
-const handleSubmitAppointment = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!schedulingDate) return;
-  
-  setIsSubmitting(true);
-  setSubmitError("");
-  
-  try {
-    const formattedDate = format(schedulingDate, 'yyyy-MM-dd');
+  const handleSubmitAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Create the appointment
-    const appointment = await databases.createDocument(
-      process.env.NEXT_PUBLIC_DATABASE_ID!,
-      "6734ba2700064c66818e",
-      ID.unique(),
-      {
-        patientName: newAppointment.patientName,
+    if (!schedulingDate) return;
+    
+    setIsSubmitting(true);
+    setSubmitError("");
+    
+    try {
+      const formattedDate = format(schedulingDate, 'yyyy-MM-dd');
+      
+      // First, find the counselor assigned to this student's program
+      const counselors = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!,
+        [
+          Query.equal("program", [student?.program || ""]),
+          Query.limit(1)
+        ]
+      );
+  
+      if (counselors.documents.length === 0) {
+        throw new Error("No counselor assigned to this program");
+      }
+  
+      const counselorId = counselors.documents[0].$id;
+  
+      // Create the appointment
+      const appointment = await databases.createDocument(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        "6734ba2700064c66818e",
+        ID.unique(),
+        {
+          patientName: newAppointment.patientName,
+          date: formattedDate,
+          time: newAppointment.time,
+          reason: newAppointment.sessionNotes,
+          status: newAppointment.status,
+          userid: userId,
+          program: student?.program || "",
+          concernType: newAppointment.concernType,
+          followUpRequired: newAppointment.followUpRequired,
+          sessionNotes: newAppointment.sessionNotes,
+          duration: newAppointment.duration,
+          goals: newAppointment.goals,
+          progressNotes: newAppointment.progressNotes
+        }
+      );
+  
+      // Generate QR code for this appointment with counselor info
+      const qrCodeUrl = await generateQRCode({
+        appointmentId: appointment.$id,
+        studentId: userId,
         date: formattedDate,
         time: newAppointment.time,
-        reason: newAppointment.sessionNotes,
-        status: newAppointment.status,
-        userid: userId,
         program: student?.program || "",
-        concernType: newAppointment.concernType,
-        followUpRequired: newAppointment.followUpRequired,
-        sessionNotes: newAppointment.sessionNotes,
-        duration: newAppointment.duration,
-        goals: newAppointment.goals,
-        progressNotes: newAppointment.progressNotes
-      }
-    );
-
-    // Generate QR code for this appointment
-    const qrCodeUrl = await generateQRCode({
-      appointmentId: appointment.$id,
-      studentId: userId,
-      date: formattedDate,
-      time: newAppointment.time
-    });
+        counselorId: counselorId
+      });
 
     // Update appointment with QR code URL
     await databases.updateDocument(
@@ -287,7 +305,7 @@ const handleSubmitAppointment = async (e: React.FormEvent) => {
     
   } catch (error) {
     console.error("Error creating appointment:", error);
-    setSubmitError("Failed to create appointment. Please try again.");
+    setSubmitError(error instanceof Error ? error.message : "Failed to create appointment. Please try again.");
   } finally {
     setIsSubmitting(false);
   }

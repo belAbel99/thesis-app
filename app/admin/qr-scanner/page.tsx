@@ -1,11 +1,14 @@
 "use client";
 
+import { QrScanner } from "@/components/QRScanner";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, Upload, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Client, Databases, Query } from "appwrite";
+import { Client, Databases, Query, ID} from "appwrite";
 import SideBar from "@/components/SideBar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import jsQR from "jsqr";
 
 const QRScannerPage = () => {
@@ -14,6 +17,7 @@ const QRScannerPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [cameraActive, setCameraActive] = useState(true);
   const router = useRouter();
 
   const client = new Client()
@@ -22,7 +26,7 @@ const QRScannerPage = () => {
   
   const databases = new Databases(client);
 
-  const handleScan = async (decodedText: string) => {
+  const handleScanSuccess = async (decodedText: string) => {
     if (scanResult) return;
     
     try {
@@ -41,15 +45,16 @@ const QRScannerPage = () => {
         throw new Error("Invalid QR code format");
       }
 
-      // Required fields check
-      if (!parsedData.appointmentId || !parsedData.studentId) {
-        throw new Error("QR code missing required data");
+      // Verify the hash
+      const expectedHash = generateHash(parsedData.appointmentId);
+      if (parsedData.hash !== expectedHash) {
+        throw new Error("Invalid QR code");
       }
 
       // Verify appointment exists
       const appointment = await databases.getDocument(
         process.env.NEXT_PUBLIC_DATABASE_ID!,
-        "6734ba2700064c66818e", // APPOINTMENT_COLLECTION_ID
+        "6734ba2700064c66818e",
         parsedData.appointmentId
       );
 
@@ -65,7 +70,7 @@ const QRScannerPage = () => {
       // Verify QR code record
       const qrRecords = await databases.listDocuments(
         process.env.NEXT_PUBLIC_DATABASE_ID!,
-        "67f2970e00143006a1fb", // APPOINTMENT_QR_CODES_COLLECTION_ID
+        "67f2970e00143006a1fb",
         [
           Query.equal("appointmentId", [parsedData.appointmentId]),
           Query.equal("status", ["generated"])
@@ -97,6 +102,43 @@ const QRScannerPage = () => {
         }
       );
 
+      // After successful scan, create notification
+      const student = await databases.getDocument(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_PATIENT_COLLECTION_ID!,
+        parsedData.studentId
+      );
+
+      const counselors = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!,
+        [
+          Query.equal("program", [student.program]),
+          Query.limit(1)
+        ]
+      );
+
+      if (counselors.documents.length > 0) {
+        const counselor = counselors.documents[0];
+        
+        // Create notification
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID!,
+          ID.unique(),
+          {
+            counselorId: counselor.$id,
+            studentId: parsedData.studentId,
+            appointmentId: parsedData.appointmentId,
+            message: `${student.name} has checked in for their appointment`,
+            read: false,
+            type: "qr_scan",
+            createdAt: new Date().toISOString(),
+            redirectUrl: `/admin/counselors/appointments?appointmentId=${parsedData.appointmentId}`
+          }
+        );
+      }
+
       setScanResult({
         ...parsedData,
         appointmentDetails: appointment
@@ -116,11 +158,12 @@ const QRScannerPage = () => {
     
     setFile(selectedFile);
     setLoading(true);
+    setCameraActive(false);
     
     try {
       const decodedText = await readQRFromImage(selectedFile);
       if (decodedText) {
-        await handleScan(decodedText);
+        await handleScanSuccess(decodedText);
       } else {
         throw new Error("No QR code found in the image");
       }
@@ -128,6 +171,7 @@ const QRScannerPage = () => {
       setError(err.message || "Failed to read QR code from image");
     } finally {
       setLoading(false);
+      setCameraActive(true);
     }
   };
 
@@ -164,11 +208,27 @@ const QRScannerPage = () => {
     });
   };
 
+  const generateHash = (appointmentId: string): string => {
+    let hash = 0;
+    for (let i = 0; i < appointmentId.length; i++) {
+      const char = appointmentId.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString();
+  };
+
   const resetScanner = () => {
     setScanResult(null);
     setError(null);
     setSuccess(false);
     setFile(null);
+    setCameraActive(true);
+  };
+
+  const toggleCamera = () => {
+    setCameraActive(!cameraActive);
+    setError(null);
   };
 
   return (
@@ -185,36 +245,75 @@ const QRScannerPage = () => {
           <div className="bg-white rounded-xl shadow-lg p-6 text-black">
             {!scanResult ? (
               <div className="flex flex-col items-center space-y-6">
-                <div className="w-full max-w-md space-y-4">
-                  <label className="block text-center">
-                    Upload QR Code Image
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="block w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-md file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-blue-50 file:text-blue-700
-                        hover:file:bg-blue-100
-                        cursor-pointer"
-                      disabled={loading}
-                    />
-                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  </div>
-                  {file && (
-                    <p className="text-sm text-gray-500">
-                      Selected: {file.name}
-                    </p>
-                  )}
+                <div className="w-full flex justify-center gap-4">
+                  <Button 
+                    variant={cameraActive ? "default" : "outline"} 
+                    onClick={toggleCamera}
+                    className="flex items-center gap-2"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Use Camera
+                  </Button>
+                  <Button 
+                    variant={!cameraActive ? "default" : "outline"} 
+                    onClick={toggleCamera}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload Image
+                  </Button>
                 </div>
+
+                {cameraActive ? (
+                  <div className="w-full max-w-md">
+                    <QrScanner
+                      onScanSuccess={handleScanSuccess}
+                      onScanError={(err) => {
+                        // Ignore common "not found" errors during scanning
+                        if (!err.includes("NotFoundException")) {
+                          setError(err);
+                        }
+                      }}
+                      qrbox={{ width: 250, height: 250 }}
+                    />
+                    <p className="mt-4 text-gray-500 text-center">
+                      Position the QR code within the frame
+                    </p>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-md space-y-4">
+                    <Label htmlFor="qr-upload" className="text-center block">
+                      Upload QR Code Image
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="qr-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="cursor-pointer"
+                        disabled={loading}
+                      />
+                      {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    </div>
+                    {file && (
+                      <p className="text-sm text-gray-500">
+                        Selected: {file.name}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {error && (
                   <div className="text-red-500 text-center mt-2">
                     {error}
+                  </div>
+                )}
+
+                {loading && (
+                  <div className="flex justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="ml-2">Processing...</span>
                   </div>
                 )}
               </div>
@@ -244,6 +343,14 @@ const QRScannerPage = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Student:</span>
                         <span className="font-medium">{scanResult.appointmentDetails.patientName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Program:</span>
+                        <span className="font-medium">{scanResult.program}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Assigned Counselor:</span>
+                        <span className="font-medium">{scanResult.counselorId}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Date:</span>
