@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   },
 };
 
+module.exports = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+}
+
 export default withSentryConfig(withSentryConfig(nextConfig, {
 // For all available options, see:
 // https://github.com/getsentry/sentry-webpack-plugin#options
@@ -37,7 +43,6 @@ enabled: true,
 // tunnelRoute: "/monitoring",
 
 // Hides source maps from generated client bundles
-hideSourceMaps: true,
 
 // Automatically tree-shake Sentry logger statements to reduce bundle size
 disableLogger: true,

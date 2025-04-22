@@ -271,21 +271,7 @@ const toggleGoalSelection = (goalId: string) => {
   );
 };
 
-  const handleDelete = async (appointmentId: string) => {
-    if (confirm("Are you sure you want to delete this appointment?")) {
-      try {
-        await databases.deleteDocument(
-          process.env.NEXT_PUBLIC_DATABASE_ID!,
-          "6734ba2700064c66818e",
-          appointmentId
-        );
-        fetchAppointments();
-      } catch (error) {
-        console.error("Error deleting appointment:", error);
-        alert("Failed to delete appointment");
-      }
-    }
-  };
+  // Removed unused handleDelete function to resolve the error
 
   const renderDayView = () => {
     if (!selectedDate) return null;
@@ -393,12 +379,13 @@ const toggleGoalSelection = (goalId: string) => {
             <h1 className="text-3xl font-bold text-blue-700">Appointment Calendar</h1>
             <div className="flex items-center gap-4">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] text-black bg-white border border-gray-300">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="text-black bg-white">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
