@@ -1,26 +1,19 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "10mb",
-    },
-  },
+const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: true, // Add if you're having TypeScript errors during build
+    ignoreBuildErrors: true,
   },
-  output: "standalone", // Recommended for production deployments
-};
-
-module.exports = {
   experimental: {
-    disableOptimizedLoading: true
+    runtime: 'nodejs' // Uncomment if needed
   }
 }
+
+module.exports = nextConfig as NextConfig;
 
 const sentryWebpackPluginOptions = {
   // Sentry configuration
