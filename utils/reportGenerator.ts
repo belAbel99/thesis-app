@@ -2,6 +2,7 @@ import { Databases, Query } from "appwrite";
 import { Client } from "appwrite";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { format, parseISO } from "date-fns";
 
 interface AppointmentStats {
   total: number;
@@ -19,9 +20,29 @@ interface ReportData {
   completionRate: number;
   byProgram: Record<string, AppointmentStats>;
   byConcernType: Record<string, number>;
+  dateRange?: {
+    startDate: string;
+    endDate: string;
+  };
 }
 
-export const generateAppointmentReport = async (program?: string): Promise<ReportData> => {
+interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+interface ReportOptions {
+  range?: 'week' | 'month' | 'year' | 'custom' | 'all';
+  customRange?: {
+    startDate: string;
+    endDate: string;
+  };
+  program?: string;
+}
+
+export const generateAppointmentReport = async (
+  options: ReportOptions = {}
+): Promise<ReportData> => {
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_PROJECT_ID!);
@@ -29,10 +50,52 @@ export const generateAppointmentReport = async (program?: string): Promise<Repor
   const databases = new Databases(client);
 
   try {
+    // Build date range queries
+    const getDateRange = (): DateRange => {
+      const now = new Date();
+      const start = new Date();
+      
+      switch(options.range) {
+        case 'week':
+          start.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          start.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          start.setFullYear(now.getFullYear() - 1);
+          break;
+        case 'custom':
+          if (options.customRange) {
+            return {
+              startDate: options.customRange.startDate,
+              endDate: options.customRange.endDate
+            };
+          }
+          break;
+        case 'all':
+        default:
+          return { startDate: '', endDate: '' };
+      }
+      
+      return {
+        startDate: format(start, 'yyyy-MM-dd'),
+        endDate: format(now, 'yyyy-MM-dd')
+      };
+    };
+
+    const { startDate, endDate } = getDateRange();
+    
     // Build queries
     const queries = [];
-    if (program) {
-      queries.push(Query.equal("program", [program]));
+    if (options.program) {
+      queries.push(Query.equal("program", [options.program]));
+    }
+    
+    // Add date range queries if specified
+    if (startDate && endDate) {
+      queries.push(Query.greaterThanEqual("date", startDate));
+      queries.push(Query.lessThanEqual("date", endDate));
     }
 
     // Get all appointments
@@ -93,7 +156,8 @@ export const generateAppointmentReport = async (program?: string): Promise<Repor
       scheduled,
       completionRate,
       byProgram,
-      byConcernType
+      byConcernType,
+      dateRange: options.range && options.range !== 'all' ? { startDate, endDate } : undefined
     };
   } catch (error) {
     console.error("Error generating appointment report:", error);
@@ -104,10 +168,15 @@ export const generateAppointmentReport = async (program?: string): Promise<Repor
 export const generatePDFReport = (reportData: ReportData, title: string) => {
   const doc = new jsPDF();
   
-  // Title
+  // Title with date range if applicable
+  let fullTitle = title;
+  if (reportData.dateRange) {
+    fullTitle += ` (${reportData.dateRange.startDate} to ${reportData.dateRange.endDate})`;
+  }
+  
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text(title, 105, 15, { align: "center" });
+  doc.text(fullTitle, 105, 15, { align: "center" });
   
   // Summary Section
   doc.setFontSize(14);
@@ -131,7 +200,7 @@ export const generatePDFReport = (reportData: ReportData, title: string) => {
   // By Program Section
   doc.setFontSize(14);
   // @ts-ignore
-  doc.text("Appointments by Program", 14, doc.lastAutoTable.finalY + 15);
+  doc.text("Appointments in the College", 14, doc.lastAutoTable.finalY + 15);
   
   const programData = Object.entries(reportData.byProgram).map(([program, stats]) => [
     program,
@@ -145,7 +214,7 @@ export const generatePDFReport = (reportData: ReportData, title: string) => {
   autoTable(doc, {
     // @ts-ignore
     startY: doc.lastAutoTable.finalY + 20,
-    head: [["Program", "Total", "Completed", "Cancelled", "Scheduled", "Completion Rate"]],
+    head: [["College", "Total", "Completed", "Cancelled", "Scheduled", "Completion Rate"]],
     body: programData,
     theme: "grid",
     headStyles: { fillColor: [41, 128, 185], textColor: 255 },

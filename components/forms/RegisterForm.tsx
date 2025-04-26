@@ -132,13 +132,14 @@ const RegisterForm = ({ user }: { user: User }) => {
     fetchProgramTypes();
     fetchCounselors();
   }, []);
+  
   async function onSubmit(values: z.infer<typeof GuidanceFormValidation>) {
     setIsLoading(true);
-    setSuccessMessage(""); // Reset any existing messages
-    setMessage(""); // Reset error messages
+    setSuccessMessage("");
+    setMessage("");
   
     try {
-      // Prepare form data (existing code)
+      // Prepare form data
       let formData;
       if (values.identificationDocument?.length > 0) {
         const blobFile = new Blob([values.identificationDocument[0]], {
@@ -149,7 +150,7 @@ const RegisterForm = ({ user }: { user: User }) => {
         formData.append("fileName", values.identificationDocument[0].name);
       }
   
-      // Find counselor (existing code)
+      // Find counselor
       const counselor = counselors.find((c) => c.program === values.program);
       if (!counselor) {
         throw new Error("No counselor available for this program.");
@@ -169,9 +170,8 @@ const RegisterForm = ({ user }: { user: User }) => {
         disclosureConsent: values.disclosureConsent,
       };
   
-      // Register patient
+      // Register patient (this will also create consent record)
       const patient = await registerPatient(patientData);
-      console.log("Registration successful, patient ID:", patient.$id);
   
       // Create referral
       const client = new Client().setEndpoint(ENDPOINT).setProject(PROJECT_ID);
@@ -192,15 +192,18 @@ const RegisterForm = ({ user }: { user: User }) => {
       // Show success message
       setSuccessMessage("Registration successful! Redirecting...");
       
-      // Wait a moment to ensure message is seen
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Redirect after 1.5 seconds
+      setTimeout(() => {
+        router.push(`/patients/${patient.$id}/student`);
+      }, 1500);
       
-      // Then redirect
-      router.push(`/patients/${patient.$id}/student`);
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
-      setMessage(error instanceof Error ? error.message : "Registration failed");
+      setMessage(
+        error?.message || 
+        error?.response?.message || 
+        "Registration failed. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -286,13 +289,13 @@ const RegisterForm = ({ user }: { user: User }) => {
           label="Date of Birth"
           required={false}
         />
-        <CustomFormField
+          <CustomFormField
           fieldType={FormFieldType.INPUT}
           control={form.control}
           name="age"
           label="Age"
           placeholder="21"
-          type="text" // Use type="text" for string input
+          type="text" // Pass type directly if supported
           required={true}
         />
         <CustomFormField
@@ -388,7 +391,7 @@ const RegisterForm = ({ user }: { user: User }) => {
             fieldType={FormFieldType.SKELETON}
             control={form.control}
             name="program"
-            label="Program"
+            label="College Program"
             required={true}
             renderSkeleton={(field) => (
               <FormControl>
@@ -397,7 +400,7 @@ const RegisterForm = ({ user }: { user: User }) => {
                   defaultValue={field.value}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Program" />
+                    <SelectValue placeholder="Select College" />
                   </SelectTrigger>
                   <SelectContent className="w-full text-black">
                     {programTypes.map((program) => (

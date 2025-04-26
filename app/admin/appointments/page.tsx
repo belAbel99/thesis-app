@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Client, Databases } from "appwrite";
+import { Client, Databases, Query } from "appwrite";
 import SideBar from "@/components/SideBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 interface Appointment {
   $id: string;
@@ -22,7 +31,7 @@ interface Appointment {
   date: string;
   time: string;
   reason: string;
-  status: "Scheduled" | "Completed" | "Cancelled";
+  status: "Scheduled" | "Completed" | "Cancelled" | "Pending";
   userid: string;
   program: string;
   concernType: "Academic" | "Career" | "Personal" | "Crisis";
@@ -45,6 +54,15 @@ const AdminAppointmentsPage = () => {
   const [counselorNotes, setCounselorNotes] = useState("");
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [concernFilter, setConcernFilter] = useState<string>("all");
+  const [followUpFilter, setFollowUpFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<string>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<"Cancelled" | "Completed" | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [followUpRequired, setFollowUpRequired] = useState(false);
   
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -70,7 +88,7 @@ const AdminAppointmentsPage = () => {
         followUpRequired: doc.followUpRequired || false
       }));
       setAppointments(normalizedAppointments as Appointment[]);
-      setFilteredAppointments(normalizedAppointments as Appointment[]);
+      applyFiltersAndSort(normalizedAppointments);
     } catch (error) {
       console.error("Error fetching appointments:", error);
       setMessage("Failed to fetch appointments");
@@ -79,25 +97,109 @@ const AdminAppointmentsPage = () => {
     }
   };
 
-  useEffect(() => {
-    const filtered = appointments.filter(appointment =>
-      appointment.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.sessionNotes.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.concernType.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredAppointments(filtered);
-  }, [searchTerm, appointments]);
+  const applyFiltersAndSort = (appointmentsToFilter: Appointment[]) => {
+    let filtered = [...appointmentsToFilter];
 
-  const handleStatusChange = async (appointmentId: string, newStatus: string) => {
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(appointment => appointment.status === statusFilter);
+    }
+
+    // Apply concern filter
+    if (concernFilter !== "all") {
+      filtered = filtered.filter(appointment => appointment.concernType === concernFilter);
+    }
+
+    // Apply follow-up filter
+    if (followUpFilter !== "all") {
+      filtered = filtered.filter(appointment => 
+        followUpFilter === "yes" ? appointment.followUpRequired : !appointment.followUpRequired
+      );
+    }
+
+    // Apply search term
+    if (searchTerm) {
+      filtered = filtered.filter(appointment =>
+        appointment.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        appointment.sessionNotes.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        appointment.concernType.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case "patientName":
+          comparison = a.patientName.localeCompare(b.patientName);
+          break;
+        case "date":
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case "status":
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case "concernType":
+          comparison = a.concernType.localeCompare(b.concernType);
+          break;
+        case "duration":
+          comparison = a.duration - b.duration;
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    setFilteredAppointments(filtered);
+  };
+
+  useEffect(() => {
+    applyFiltersAndSort(appointments);
+  }, [searchTerm, statusFilter, concernFilter, followUpFilter, sortField, sortDirection, appointments]);
+
+  const handleStatusChange = async (appointmentId: string, status: "Cancelled" | "Completed") => {
+    setSelectedAppointmentId(appointmentId);
+    setNewStatus(status);
+    setIsStatusDialogOpen(true);
+    
+    const appointment = appointments.find(a => a.$id === appointmentId);
+    if (appointment) {
+      if (status === "Completed") {
+        setCounselorNotes(appointment.counselorNotes || "");
+      } else {
+        setCancellationReason(appointment.cancellationReason || "");
+      }
+      setFollowUpRequired(appointment.followUpRequired);
+    }
+  };
+
+  const confirmStatusChange = async () => {
+    if (!selectedAppointmentId || !newStatus) return;
+    
     try {
+      const updateData: any = { 
+        status: newStatus,
+        followUpRequired
+      };
+      
+      if (newStatus === "Cancelled") {
+        updateData.cancellationReason = cancellationReason;
+      } else if (newStatus === "Completed") {
+        updateData.counselorNotes = counselorNotes;
+      }
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_DATABASE_ID!,
         "6734ba2700064c66818e",
-        appointmentId,
-        { status: newStatus }
+        selectedAppointmentId,
+        updateData
       );
+
       fetchAppointments();
-      setMessage("Appointment status updated successfully!");
+      setMessage(`Appointment marked as ${newStatus} successfully!`);
       setMessageType("success");
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
@@ -105,6 +207,13 @@ const AdminAppointmentsPage = () => {
       setMessage("Failed to update appointment status");
       setMessageType("error");
       setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setIsStatusDialogOpen(false);
+      setSelectedAppointmentId(null);
+      setNewStatus(null);
+      setCounselorNotes("");
+      setCancellationReason("");
+      setFollowUpRequired(false);
     }
   };
 
@@ -175,6 +284,7 @@ const AdminAppointmentsPage = () => {
       case "Scheduled": return "bg-blue-100 text-blue-700";
       case "Completed": return "bg-green-100 text-green-700";
       case "Cancelled": return "bg-red-100 text-red-700";
+      case "Pending": return "bg-yellow-100 text-yellow-700";
       default: return "bg-gray-100 text-gray-700";
     }
   };
@@ -187,6 +297,15 @@ const AdminAppointmentsPage = () => {
       case "Crisis": return "bg-red-100 text-red-700";
       default: return "bg-gray-100 text-gray-700";
     }
+  };
+
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setConcernFilter("all");
+    setFollowUpFilter("all");
+    setSearchTerm("");
+    setSortField("date");
+    setSortDirection("asc");
   };
 
   return (
@@ -221,17 +340,72 @@ const AdminAppointmentsPage = () => {
             </div>
           )}
 
-          {/* Search Bar */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
-            <div className="relative max-w-xl mx-auto">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <Input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, notes, or concern type..."
-                className="pl-10 pr-4 py-2 w-full"
-              />
+          {/* Search and Filters */}
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100 text-black">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by name, notes, or concern type..."
+                  className="pl-10 pr-4 py-2 w-full"
+                />
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="w-full md:w-auto">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent className="w-[180px] text-black">
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="Scheduled">Scheduled</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="w-full md:w-auto">
+                  <Select value={concernFilter} onValueChange={setConcernFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filter by concern" />
+                    </SelectTrigger>
+                    <SelectContent className="w-[180px] text-black">
+                      <SelectItem value="all">All Concerns</SelectItem>
+                      <SelectItem value="Academic">Academic</SelectItem>
+                      <SelectItem value="Career">Career</SelectItem>
+                      <SelectItem value="Personal">Personal</SelectItem>
+                      <SelectItem value="Crisis">Crisis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="w-full md:w-auto">
+                  <Select value={followUpFilter} onValueChange={setFollowUpFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Follow-up" />
+                    </SelectTrigger>
+                    <SelectContent className="w-[180px] text-black">
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="yes">Follow-up required</SelectItem>
+                      <SelectItem value="no">No follow-up</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="ml-auto"
+                >
+                  Clear Filters
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -241,11 +415,76 @@ const AdminAppointmentsPage = () => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Concern</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button 
+                        className="flex items-center gap-1"
+                        onClick={() => {
+                          setSortField("patientName");
+                          setSortDirection(sortField === "patientName" ? (sortDirection === "asc" ? "desc" : "asc") : "asc");
+                        }}
+                      >
+                        Patient
+                        {sortField === "patientName" && (
+                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button 
+                        className="flex items-center gap-1"
+                        onClick={() => {
+                          setSortField("date");
+                          setSortDirection(sortField === "date" ? (sortDirection === "asc" ? "desc" : "asc") : "asc");
+                        }}
+                      >
+                        Date & Time
+                        {sortField === "date" && (
+                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button 
+                        className="flex items-center gap-1"
+                        onClick={() => {
+                          setSortField("duration");
+                          setSortDirection(sortField === "duration" ? (sortDirection === "asc" ? "desc" : "asc") : "asc");
+                        }}
+                      >
+                        Duration
+                        {sortField === "duration" && (
+                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button 
+                        className="flex items-center gap-1"
+                        onClick={() => {
+                          setSortField("concernType");
+                          setSortDirection(sortField === "concernType" ? (sortDirection === "asc" ? "desc" : "asc") : "asc");
+                        }}
+                      >
+                        Concern
+                        {sortField === "concernType" && (
+                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button 
+                        className="flex items-center gap-1"
+                        onClick={() => {
+                          setSortField("status");
+                          setSortDirection(sortField === "status" ? (sortDirection === "asc" ? "desc" : "asc") : "asc");
+                        }}
+                      >
+                        Status
+                        {sortField === "status" && (
+                          sortDirection === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -254,7 +493,7 @@ const AdminAppointmentsPage = () => {
                     <>
                       <tr 
                         key={appointment.$id} 
-                        className="hover:bg-gray-50 cursor-pointer"
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
                         onClick={() => toggleExpandAppointment(appointment.$id)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -262,7 +501,9 @@ const AdminAppointmentsPage = () => {
                           <div className="text-sm text-gray-500">{appointment.program}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-900">{new Date(appointment.date).toLocaleDateString()}</div>
+                          <div className="text-gray-900">
+                            {new Date(appointment.date).toLocaleDateString()}
+                          </div>
                           <div className="text-sm text-gray-500">{appointment.time}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-900">
@@ -274,16 +515,9 @@ const AdminAppointmentsPage = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={appointment.status}
-                            onChange={(e) => handleStatusChange(appointment.$id, e.target.value)}
-                            className={`px-2 py-1 text-xs rounded-full ${getStatusColor(appointment.status)}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="Scheduled">Scheduled</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
+                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(appointment.status)}`}>
+                            {appointment.status}
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex gap-2">
@@ -298,9 +532,36 @@ const AdminAppointmentsPage = () => {
                             >
                               Notes
                             </Button>
+                            {appointment.status === "Scheduled" || appointment.status === "Pending" ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-green-600 hover:bg-green-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusChange(appointment.$id, "Completed");
+                                  }}
+                                >
+                                  Complete
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:bg-red-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusChange(appointment.$id, "Cancelled");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : null}
                             <Button
                               variant="destructive"
                               size="sm"
+                              className="text-red-600 hover:bg-red-50 text-red-500"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openDeleteDialog(appointment.$id);
@@ -393,6 +654,7 @@ const AdminAppointmentsPage = () => {
             <Button 
               variant="destructive" 
               onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-red-50"
             >
               Delete
             </Button>
@@ -427,6 +689,71 @@ const AdminAppointmentsPage = () => {
               onClick={handleSaveNotes}
             >
               Save Notes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Dialog */}
+      <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {newStatus === "Cancelled" ? "Cancel Appointment" : "Complete Session"}
+            </DialogTitle>
+            <DialogDescription>
+              {newStatus === "Cancelled" 
+                ? "Please provide a reason for cancellation" 
+                : "Please add notes about this session"}
+            </DialogDescription>
+          </DialogHeader>
+          {newStatus === "Cancelled" ? (
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Enter cancellation reason..."
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                required
+              />
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="followUpRequired"
+                  checked={followUpRequired}
+                  onCheckedChange={(checked) => setFollowUpRequired(Boolean(checked))}
+                />
+                <Label htmlFor="followUpRequired">Requires Follow-up</Label>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Enter session notes..."
+                value={counselorNotes}
+                onChange={(e) => setCounselorNotes(e.target.value)}
+                required
+              />
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="followUpRequired"
+                  checked={followUpRequired}
+                  onCheckedChange={(checked) => setFollowUpRequired(Boolean(checked))}
+                />
+                <Label htmlFor="followUpRequired">Requires Follow-up</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsStatusDialogOpen(false)}
+              className="border-gray-300 hover:bg-gray-50"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmStatusChange}
+            >
+              {newStatus === "Cancelled" ? "Confirm Cancellation" : "Complete Session"}
             </Button>
           </DialogFooter>
         </DialogContent>

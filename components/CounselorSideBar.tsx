@@ -70,7 +70,7 @@ const CounselorSideBar = () => {
       {/* Profile Badge */}
       {isOpen && (
         <div className="p-4 border-b border-gray-200">
-          <ProfileBadge name="Counselor Name" role="Guidance Counselor" />
+          <ProfileBadge name="name" role="Guidance Counselor" />
         </div>
       )}
 

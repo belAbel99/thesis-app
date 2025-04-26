@@ -12,12 +12,12 @@ const ComboBox = ({ filterType, setFilterType, view = "students" }: ComboBoxProp
     { value: "civilStatus", label: "Civil Status" },
     { value: "occupation", label: "Occupation" },
     { value: "address", label: "Address" },
-    { value: "program", label: "Program" }
+    { value: "program", label: "Colleges" }
   ];
 
   const counselorOptions = [
     { value: "", label: "All Counselors" },
-    { value: "program", label: "Program" },
+    { value: "program", label: "C0lleges" },
     { value: "areaOfExpertise", label: "Area of Expertise" },
     { value: "isActive", label: "Active Status" },
     { value: "contactNumber", label: "Contact Number" }
@@ -27,7 +27,7 @@ const ComboBox = ({ filterType, setFilterType, view = "students" }: ComboBoxProp
 
   return (
     <select
-      className="w-full p-3 border border-gray-700 rounded-lg bg-blue-700 text-white shadow-sm focus:outline-none focus:none focus:ring-none mb-4"
+      className="w-full p-3 border border-gray-300 rounded-lg bg-white text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
       value={filterType}
       onChange={(e) => setFilterType(e.target.value)}
     >

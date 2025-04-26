@@ -32,7 +32,7 @@ const SideBar = () => {
       icon: <Users className="w-5 h-5" />
     },
     {
-      label: "Add A Program",
+      label: "Add A College",
       href: "/admin/program",
       icon: <Briefcase className="w-5 h-5" />
     },

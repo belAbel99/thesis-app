@@ -73,7 +73,7 @@ const PrintButton = ({ student }: { student: any }) => {
       startY: y,
       head: [["Academic Information", "Details"]],
       body: [
-        ["Program", student.program || "N/A"],
+        ["College", student.program || "N/A"],
         ["Year Level", student.yearLevel || "N/A"],
         ["Academic Performance", student.academicPerformance || "N/A"],
         ["Scholarship", student.scholarship || "N/A"],

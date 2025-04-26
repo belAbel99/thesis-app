@@ -17,7 +17,7 @@ const fontSans = Plus_Jakarta_Sans({
 // });
 
 export const metadata: Metadata = {
-  title: "Guidance Office CSU",
+  title: "Guidance & Counseling Office CSU",
   description: "Improve the mental health of the students in CSU",
 };
 

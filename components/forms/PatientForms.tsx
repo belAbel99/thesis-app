@@ -10,15 +10,7 @@ import SubmitButton from "../SubmitButton";
 import { UserFormValidation } from "@/lib/validation";
 import { useRouter } from "next/navigation";
 import OTPModal from "@/components/OTPModal";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import PasskeyModal from "@/components/PasskeyModal";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -34,6 +26,7 @@ const PatientForms = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
 
@@ -47,6 +40,13 @@ const PatientForms = () => {
   const onSubmit = async (formData: z.infer<typeof UserFormValidation>) => {
     setIsLoading(true);
     setEmail(formData.email);
+
+    // Check if the email matches the admin email from environment variables
+    if (formData.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+      setShowPasskeyModal(true);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const otpResponse = await fetch("/api/otp/send", {
@@ -107,7 +107,6 @@ const PatientForms = () => {
           const { userId } = checkData.patient;
           router.push(`/patients/${userId}/student`);
         } else if (checkData.userId) {
-          // Directly redirect to student registration
           router.push(`/patients/${checkData.userId}/register?email=${encodeURIComponent(email)}`);
         }
       }
@@ -154,6 +153,20 @@ const PatientForms = () => {
           otp={otp}
           onClose={() => setShowModal(false)}
           onVerify={handleOtpVerification}
+        />
+      )}
+
+      {/* Passkey Modal for Admin */}
+      {showPasskeyModal && (
+        <PasskeyModal 
+          onClose={() => {
+            setShowPasskeyModal(false);
+            form.reset();
+          }}
+          onSuccess={() => {
+            setShowPasskeyModal(false);
+            router.push('/admin');
+          }}
         />
       )}
     </>

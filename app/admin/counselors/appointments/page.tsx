@@ -610,6 +610,7 @@ const CounselorAppointmentsPage = () => {
                             <Button
                               variant="destructive"
                               size="sm"
+                              className="text-red-600 hover:bg-red-50 text-red-500"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openDeleteDialog(appointment.$id);
@@ -702,6 +703,7 @@ const CounselorAppointmentsPage = () => {
             <Button 
               variant="destructive" 
               onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-red-50"
             >
               Delete
             </Button>

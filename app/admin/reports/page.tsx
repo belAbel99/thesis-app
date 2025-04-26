@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { generateAppointmentReport, generatePDFReport } from "@/utils/reportGenerator";
-import { Download, BarChart2, PieChart as LucidePieChart } from "lucide-react";
+import { Download, BarChart2, PieChart as LucidePieChart, Calendar as CalendarIcon } from "lucide-react";
 import SideBar from "@/components/SideBar";
 import {
   BarChart,
@@ -18,17 +18,33 @@ import {
   Pie,
   Cell
 } from "recharts";
+import { format } from "date-fns";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+
+type ReportRange = 'week' | 'month' | 'year' | 'custom' | 'all';
 
 const AdminReportsPage = () => {
   const [reportData, setReportData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedRange, setSelectedRange] = useState<ReportRange>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [customEndDate, setCustomEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
   const loadReport = async () => {
     setLoading(true);
     try {
-      const data = await generateAppointmentReport();
+      const options = {
+        range: selectedRange,
+        ...(selectedRange === 'custom' && {
+          customRange: {
+            startDate: customStartDate,
+            endDate: customEndDate
+          }
+        })
+      };
+      const data = await generateAppointmentReport(options);
       setReportData(data);
     } catch (error) {
       console.error("Error generating report:", error);
@@ -39,8 +55,13 @@ const AdminReportsPage = () => {
 
   const downloadPDF = () => {
     if (!reportData) return;
-    const pdf = generatePDFReport(reportData, "Appointment Analytics Report");
-    pdf.save("appointment_report.pdf");
+    const rangeTitle = selectedRange === 'all' 
+      ? "All Appointments Report" 
+      : selectedRange === 'custom'
+        ? `Custom Report (${customStartDate} to ${customEndDate})`
+        : `${selectedRange.charAt(0).toUpperCase() + selectedRange.slice(1)}ly Appointment Report`;
+    const pdf = generatePDFReport(reportData, rangeTitle);
+    pdf.save(`appointment_report_${selectedRange}.pdf`);
   };
 
   // Prepare data for charts
@@ -66,13 +87,53 @@ const AdminReportsPage = () => {
               <p className="text-gray-600 mt-2">Generate and analyze appointment data</p>
             </div>
             <div className="flex gap-4">
-              <Button 
-                onClick={loadReport}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {loading ? "Loading..." : "Generate Report"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedRange}
+                  onChange={(e) => {
+                    const value = e.target.value as ReportRange;
+                    setSelectedRange(value);
+                    setShowCustomDatePicker(value === 'custom');
+                  }}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                >
+                  <option value="all">All Time</option>
+                  <option value="week">Last Week</option>
+                  <option value="month">Last Month</option>
+                  <option value="year">Last Year</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                {showCustomDatePicker && (
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      />
+                      <CalendarIcon className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+                    </div>
+                    <span>to</span>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      />
+                      <CalendarIcon className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                )}
+                <Button 
+                  onClick={loadReport}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {loading ? "Loading..." : "Generate Report"}
+                </Button>
+              </div>
               <Button 
                 onClick={downloadPDF}
                 disabled={!reportData}
@@ -83,6 +144,12 @@ const AdminReportsPage = () => {
               </Button>
             </div>
           </div>
+
+          {reportData?.dateRange && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg text-blue-800">
+              Showing data from {reportData.dateRange.startDate} to {reportData.dateRange.endDate}
+            </div>
+          )}
 
           {reportData && (
             <div className="space-y-8">
@@ -116,10 +183,19 @@ const AdminReportsPage = () => {
                   </h3>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={programData}>
+                      <BarChart
+                        data={programData}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                        layout="vertical"
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
+                        <XAxis type="number" />
+                        <YAxis 
+                          type="category" 
+                          dataKey="name" 
+                          width={150}
+                          tick={{ fontSize: 12 }}
+                        />
                         <Tooltip />
                         <Legend />
                         <Bar dataKey="total" name="Total" fill="#8884d8" />
@@ -169,7 +245,7 @@ const AdminReportsPage = () => {
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">Program</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cancelled</th>
@@ -180,7 +256,11 @@ const AdminReportsPage = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {Object.entries(reportData.byProgram).map(([program, data]: [string, any]) => (
                         <tr key={program}>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-900">{program}</td>
+                          <td className="px-6 py-4 text-gray-900">
+                            <div className="max-w-[200px] truncate" title={program}>
+                              {program}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-900">{data.total}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-900">{data.completed}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-900">{data.cancelled}</td>

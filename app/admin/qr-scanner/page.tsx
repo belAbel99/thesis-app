@@ -345,7 +345,7 @@ const QRScannerPage = () => {
                         <span className="font-medium">{scanResult.appointmentDetails.patientName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Program:</span>
+                        <span className="text-gray-600">College:</span>
                         <span className="font-medium">{scanResult.program}</span>
                       </div>
                       <div className="flex justify-between">

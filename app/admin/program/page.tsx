@@ -4,22 +4,19 @@ import { useEffect, useState } from "react";
 import { Client, Databases, ID } from "appwrite";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash, Edit, CheckCircle, Search, XCircle } from "lucide-react";
+import { Trash, Edit, CheckCircle, Search, XCircle, Plus, Loader2 } from "lucide-react";
 import SideBar from "@/components/SideBar";
 
-// Program Type Interface
 interface ProgramType {
   $id: string;
   name: string;
 }
 
-// Environment Variables
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID!;
 const DATABASE_ID = process.env.NEXT_PUBLIC_DATABASE_ID!;
 const PROGRAMTYPES_COLLECTION_ID = process.env.NEXT_PUBLIC_PROGRAMTYPES_COLLECTION_ID!;
 const ENDPOINT = process.env.NEXT_PUBLIC_ENDPOINT!;
 
-// Appwrite Client & Database
 const client = new Client();
 client.setEndpoint(ENDPOINT).setProject(PROJECT_ID);
 const databases = new Databases(client);
@@ -33,13 +30,15 @@ const ProgramTypesManagement = () => {
   const [updatedProgramType, setUpdatedProgramType] = useState("");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchProgramTypes();
   }, []);
 
-  // Fetch Program Types
   const fetchProgramTypes = async () => {
+    setLoading(true);
     try {
       const response = await databases.listDocuments(DATABASE_ID, PROGRAMTYPES_COLLECTION_ID);
       const formattedProgramTypes: ProgramType[] = response.documents.map((doc) => ({
@@ -50,11 +49,12 @@ const ProgramTypesManagement = () => {
       setFilteredProgramTypes(formattedProgramTypes);
     } catch (error) {
       console.error("Error fetching program types:", error);
-      setMessage("Failed to fetch program types.");
+      showMessage("Failed to fetch program types.", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Search Filter
   useEffect(() => {
     setFilteredProgramTypes(
       searchTerm
@@ -65,9 +65,15 @@ const ProgramTypesManagement = () => {
     );
   }, [searchTerm, programTypes]);
 
-  // Add Program Type
+  const showMessage = (msg: string, type: string) => {
+    setMessage(msg);
+    setMessageType(type);
+    setTimeout(() => setMessage(""), 5000);
+  };
+
   const addProgramType = async () => {
-    if (!newProgramType.trim()) return setMessage("Program type name cannot be empty.");
+    if (!newProgramType.trim()) return showMessage("Program type name cannot be empty.", "error");
+    setActionLoading(true);
 
     try {
       const response = await databases.createDocument(
@@ -81,18 +87,18 @@ const ProgramTypesManagement = () => {
       setProgramTypes([...programTypes, newEntry]);
       setFilteredProgramTypes([...programTypes, newEntry]);
       setNewProgramType("");
-      setMessage("✅ Program type added successfully!");
-      setMessageType("success");
+      showMessage("Program type added successfully!", "success");
     } catch (error) {
       console.error("Error adding program type:", error);
-      setMessage("❌ Failed to add program type.");
-      setMessageType("error");
+      showMessage("Failed to add program type.", "error");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Update Program Type
   const updateProgramType = async ($id: string) => {
-    if (!updatedProgramType.trim()) return setMessage("Program type name cannot be empty.");
+    if (!updatedProgramType.trim()) return showMessage("Program type name cannot be empty.", "error");
+    setActionLoading(true);
 
     try {
       await databases.updateDocument(DATABASE_ID, PROGRAMTYPES_COLLECTION_ID, $id, {
@@ -106,132 +112,206 @@ const ProgramTypesManagement = () => {
       setFilteredProgramTypes(updatedList);
       setEditingId(null);
       setUpdatedProgramType("");
-      setMessage("✅ Program type updated successfully! ");
-      setMessageType("success");
+      showMessage("Program type updated successfully!", "success");
     } catch (error) {
       console.error("Error updating program type:", error);
-      setMessage("❌ Failed to update program type.");
-      setMessageType("error");
+      showMessage("Failed to update program type.", "error");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Delete Program Type
   const deleteProgramType = async ($id: string) => {
+    setActionLoading(true);
     try {
       await databases.deleteDocument(DATABASE_ID, PROGRAMTYPES_COLLECTION_ID, $id);
       const updatedList = programTypes.filter((programType) => programType.$id !== $id);
       setProgramTypes(updatedList);
       setFilteredProgramTypes(updatedList);
-      setMessage("✅ Program type deleted successfully! ");
-      setMessageType("success");
+      showMessage("Program type deleted successfully!", "success");
     } catch (error) {
       console.error("Error deleting program type:", error);
-      setMessage("❌ Failed to delete program type.");
-      setMessageType("error");
+      showMessage("Failed to delete program type.", "error");
+    } finally {
+      setActionLoading(false);
     }
   };
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gray-50">
       <SideBar />
-      <div className="flex flex-col items-center justify-center w-full min-h-screen p-6 bg-gray-50">
-        <h2 className="text-2xl font-bold mb-6 text-blue-700">Manage Program Types</h2>
+      <div className="flex-1 p-8 ml-20 md:ml-64">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-800">Program Types Management</h1>
+            <p className="text-gray-600">Add, edit, or remove academic programs</p>
+          </div>
 
-        {message && (
-          <div className="flex relative w-full items-center justify-center">
-          <div
-            className={`flex px-4 py-3 rounded absolute my-4 border top-28 items-center justify-center${
-              messageType === "success"
-                ? "bg-green-100 border-green-400 text-green-700"
-                : "bg-red-100 border-red-400 text-red-700"
-            }`}
-          >
-            {message}
+          {/* Message Alert */}
+          {message && (
+            <div
+              className={`mb-6 p-4 rounded-md border ${
+                messageType === "success"
+                  ? "bg-green-50 border-green-200 text-green-700"
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}
+            >
+              <div className="flex items-center">
+                {messageType === "success" ? (
+                  <CheckCircle className="mr-2 h-5 w-5" />
+                ) : (
+                  <XCircle className="mr-2 h-5 w-5" />
+                )}
+                <span>{message}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Search and Add Section */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search program types..."
+                  className="pl-10 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Add Program Type */}
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={newProgramType}
+                  onChange={(e) => setNewProgramType(e.target.value)}
+                  placeholder="New program name"
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  onKeyDown={(e) => e.key === "Enter" && addProgramType()}
+                />
+                <Button
+                  onClick={addProgramType}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  Add
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Program Types List */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="border-b border-gray-200">
+              <div className="px-6 py-3 bg-gray-50 flex justify-between items-center">
+                <h3 className="font-medium text-gray-700">Program Types</h3>
+                <span className="text-sm text-gray-500">
+                  {filteredProgramTypes.length} {filteredProgramTypes.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center items-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : filteredProgramTypes.length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {filteredProgramTypes.map((programType) => (
+                  <li key={programType.$id} className="px-6 py-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      {editingId === programType.$id ? (
+                        <Input
+                          type="text"
+                          value={updatedProgramType}
+                          onChange={(e) => setUpdatedProgramType(e.target.value)}
+                          className="mr-4 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          autoFocus
+                          onKeyDown={(e) => e.key === "Enter" && updateProgramType(programType.$id)}
+                        />
+                      ) : (
+                        <span className="font-medium text-gray-800">{programType.name}</span>
+                      )}
+
+                      <div className="flex gap-2">
+                        {editingId === programType.$id ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-gray-500"
+                              onClick={() => {
+                                setEditingId(null);
+                                setUpdatedProgramType("");
+                              }}
+                              disabled={actionLoading}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="bg-blue-600 text-white"
+                              onClick={() => updateProgramType(programType.$id)}
+                              disabled={actionLoading}
+                            >
+                              {actionLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600"
+                              onClick={() => {
+                                setEditingId(programType.$id);
+                                setUpdatedProgramType(programType.name);
+                              }}
+                              disabled={actionLoading}
+                            >
+                              <Edit className="h-4 w-4 mr-2 text-black" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600"
+                              onClick={() => deleteProgramType(programType.$id)}
+                              disabled={actionLoading}
+                            >
+                              <Trash className="h-4 w-4 mr-2 text-red-500" />
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-8 text-center">
+                <p className="text-gray-500">
+                  {searchTerm ? "No matching program types found" : "No program types available"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-        {/* Search Input */}
-        <div className="relative flex items-center gap-2 mb-4 w-full max-w-lg">
-          <Search size={20} className="text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-          <Input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search program types..."
-            className="bg-white border-2 border-blue-700 pl-9 w-full text-black"
-          />
-        </div>
-
-        {/* Add Program Type */}
-        <div className="flex gap-2 w-full max-w-lg mb-4">
-          <Input
-            type="text"
-            value={newProgramType}
-            onChange={(e) => setNewProgramType(e.target.value)}
-            placeholder="Enter program type name"
-            className="border-blue-700 bg-white text-black"
-          />
-          <Button onClick={addProgramType} className="bg-blue-700 hover:bg-blue-900">
-            Add
-          </Button>
-        </div>
-
-        {/* Program Type List */}
-        <ul className="mt-14 w-full max-w-lg">
-          {filteredProgramTypes.length > 0 ? (
-            filteredProgramTypes.map((programType) => (
-              <li
-                key={programType.$id}
-                className="flex justify-between items-center p-2 border-b border-blue-700"
-              >
-                {editingId === programType.$id ? (
-                  <input
-                    type="text"
-                    value={updatedProgramType}
-                    onChange={(e) => setUpdatedProgramType(e.target.value)}
-                    className="bg-blue-200 text-black px-2 py-1 rounded-md border border-gray-600"
-                  />
-                ) : (
-                  <span className="text-lg text-black">{programType.name}</span>
-                )}
-
-                <div className="flex gap-2">
-                  {editingId === programType.$id ? (
-                    <Button
-                      variant="ghost"
-                      onClick={() => updateProgramType(programType.$id)}
-                      className="text-green-400 hover:text-green-500"
-                    >
-                      <CheckCircle size={16} />
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingId(programType.$id);
-                        setUpdatedProgramType(programType.name);
-                      }}
-                      className="text-yellow-400 hover:text-yellow-500"
-                    >
-                      <Edit size={16} />
-                    </Button>
-                  )}
-
-                  <Button
-                    variant="ghost"
-                    onClick={() => deleteProgramType(programType.$id)}
-                    className="text-red-400 hover:text-red-500"
-                  >
-                    <Trash size={16} />
-                  </Button>
-                </div>
-              </li>
-            ))
-          ) : (
-            <p className="text-gray-400 text-center mt-4">No program types found.</p>
-          )}
-        </ul>
       </div>
     </div>
   );

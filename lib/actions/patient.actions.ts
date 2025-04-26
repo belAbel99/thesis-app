@@ -10,7 +10,8 @@ import {
   COUNSELOR_COLLECTION_ID,
   PROJECT_ID, 
   storage, 
-  users 
+  users,
+  CONSENTS_COLLECTION_ID
 } from "../appwrite.config";
 import { parseStringify } from "../utils";
 import { InputFile } from "node-appwrite/file";
@@ -39,7 +40,6 @@ export const createUser = async (user: CreateUserParams) => {
   }
 };
 
-// GET USER
 export const getUser = async (userId: string) => {
   try {
     const user = await users.get(userId);
@@ -49,10 +49,36 @@ export const getUser = async (userId: string) => {
   }
 };
 
+export const createConsent = async (consentData: {
+  patientId: string;
+  signatureFileId: string; // Changed from signatureData to signatureFileId
+  signatureDate: Date;
+  privacyConsent: boolean;
+  disclosureConsent: boolean;
+  ipAddress?: string;
+  userAgent?: string;
+}) => {
+  try {
+    const newConsent = await databases.createDocument(
+      DATABASE_ID!,
+      CONSENTS_COLLECTION_ID!,
+      ID.unique(),
+      {
+        ...consentData,
+        signatureDate: consentData.signatureDate.toISOString(),
+      }
+    );
+    return parseStringify(newConsent);
+  } catch (error) {
+    console.error("Error creating consent:", error);
+    throw error;
+  }
+};
+
 export const registerPatient = async ({ 
   identificationDocument, 
   program, 
-  signatureData, // This is now the base64 image data
+  signatureData,
   signatureDate,
   privacyConsent,
   disclosureConsent,
@@ -65,7 +91,7 @@ export const registerPatient = async ({
   disclosureConsent: boolean;
 }) => {
   try {
-    // Handle identification document upload (existing code)
+    // Handle identification document upload
     let file;
     if (identificationDocument) {
       const blobFile = identificationDocument.get("blobFile") as Blob;
@@ -81,10 +107,9 @@ export const registerPatient = async ({
       file = await storage.createFile(BUCKET_ID!, ID.unique(), inputFile);
     }
 
-    // Handle signature upload (new code)
+    // Handle signature upload
     let signatureFileId = null;
     if (signatureData) {
-      // Convert base64 to blob
       const byteString = atob(signatureData.split(',')[1]);
       const mimeString = signatureData.split(',')[0].split(':')[1].split(';')[0];
       const ab = new ArrayBuffer(byteString.length);
@@ -102,10 +127,10 @@ export const registerPatient = async ({
       );
       signatureFileId = signatureFile.$id;
     }
-
     // Construct full name
     const fullName = `${patient.firstName} ${patient.middleName ? patient.middleName + " " : ""}${patient.lastName} ${patient.suffix ? patient.suffix : ""}`.trim();
 
+    // Create patient document
     // Create patient document
     const newPatient = await databases.createDocument(
       DATABASE_ID!,
@@ -122,10 +147,19 @@ export const registerPatient = async ({
         counselorId: patient.counselorId,
         privacyConsent,
         disclosureConsent,
-        signatureFileId, // Store the file ID reference
+        signatureFileId,
         signatureDate: signatureDate.toISOString(),
       }
     );
+
+    // Create consent record - now using signatureFileId instead of signatureData
+    await createConsent({
+      patientId: newPatient.$id,
+      signatureFileId: signatureFileId!, // Use the file ID instead of raw data
+      signatureDate,
+      privacyConsent,
+      disclosureConsent,
+    });
 
     return parseStringify(newPatient);
   } catch (error) {

@@ -210,7 +210,7 @@ const CounselorDashboardPage = () => {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-blue-700">Counselor Dashboard</h1>
-              <p className="text-gray-600 mt-2">Program: {counselorProgram}</p>
+              <p className="text-gray-600 mt-2">College assigned to: {counselorProgram}</p>
             </div>
             
             {/* Notifications Bell */}
@@ -333,7 +333,7 @@ const CounselorDashboardPage = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year Level</th>
                     </tr>
                   </thead>

@@ -66,7 +66,7 @@ const StudentListPrintButton = ({ filteredStudents, filterType, view }: StudentL
     // Table Data
     const tableColumn = ["Name", "ID Number"];
     if (view === "student") {
-      tableColumn.push("Program", "Year Level"); // Add Program and Year Level for student view
+      tableColumn.push("College", "Year Level"); // Add Program and Year Level for student view
     } else if (view === "employee") {
       tableColumn.push("Office"); // Add Office for employee view
     }
@@ -140,7 +140,7 @@ const StudentListPrintButton = ({ filteredStudents, filterType, view }: StudentL
               <th className="py-2 px-4 border">ID Number</th>
               {view === "student" ? (
                 <>
-                  <th className="py-2 px-4 border">Program</th>
+                  <th className="py-2 px-4 border">College</th>
                   <th className="py-2 px-4 border">Year Level</th>
                 </>
               ) : (

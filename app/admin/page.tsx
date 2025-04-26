@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import SideBar from "@/components/SideBar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { UserRound, Calendar, BookOpenText, Stethoscope, CheckCircle, XCircle, Clock } from "lucide-react";
+import { UserRound, Calendar, BookOpenText, Stethoscope, CheckCircle, XCircle, Clock, Info } from "lucide-react";
 import { Client, Databases } from "appwrite";
 
 const client = new Client()
@@ -77,10 +77,20 @@ const AdminDashboard = () => {
     fetchData();
   }, []);
 
-  // Calculate completion rate (completed vs cancelled)
+  // Original Completion Rate (completed vs cancelled only)
   const completionRate = cancelledAppointments > 0 
     ? Math.round((completedAppointments / (completedAppointments + cancelledAppointments)) * 100)
     : completedAppointments > 0 ? 100 : 0;
+
+  // New Fulfillment Rate (includes scheduled as pending)
+  const fulfillmentRate = Math.round(
+    (completedAppointments / (completedAppointments + cancelledAppointments + scheduledAppointments)) * 100
+  );
+
+  // No-Show Rate (cancelled vs completed)
+  const noShowRate = Math.round(
+    (cancelledAppointments / (completedAppointments + cancelledAppointments)) * 100
+  );
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -135,11 +145,17 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Completion Rate Card */}
+            {/* Completion Rate Card (Original) */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+                    <span title="The percentage of appointments that were successfully 
+                                  completed out of all appointments that reached a completed or canceled state.">
+                      <Info className="w-3 h-3 text-gray-400" />
+                    </span>
+                  </div>
                   <p className="text-2xl font-bold mt-1 text-blue-600">{completionRate}%</p>
                   <p className="text-xs text-gray-500 mt-1">
                     {completedAppointments} completed / {cancelledAppointments} cancelled
@@ -153,7 +169,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Second Row of Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {/* Completed Appointments Card */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between">
@@ -192,9 +208,58 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* New Metrics Cards */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-medium text-gray-500">Fulfillment Rate</p>
+                    <Info className="w-3 h-3 text-gray-400">
+                      <title>The percentage of appointments completed out of all appointments including pending/scheduled ones.</title>
+                    </Info>
+                  </div>
+                  <p className="text-2xl font-bold mt-1 text-purple-600">{fulfillmentRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {completedAppointments} of {completedAppointments + cancelledAppointments + scheduledAppointments}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-purple-50">
+                  <BookOpenText className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Rest of your existing content... */}
+          {/* Third Row for No-Show Rate */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* No-Show Rate Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-medium text-gray-500">No-Show Rate</p>
+                    <span title="The percentage of appointments who canceled out of all appointments (completed or canceled).">
+                      <Info className="w-3 h-3 text-gray-400" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1 text-orange-600">{noShowRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {cancelledAppointments} of {completedAppointments + cancelledAppointments}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-orange-50">
+                  <XCircle className="w-6 h-6 text-orange-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Empty slots for balance (or add more metrics later) */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 opacity-0 pointer-events-none"></div>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 opacity-0 pointer-events-none"></div>
+          </div>
+
+          {/* Action Buttons */}
           <div className="flex justify-end mb-6 space-x-4">
             <Button
               onClick={() => router.push("/admin/counselors/register")}

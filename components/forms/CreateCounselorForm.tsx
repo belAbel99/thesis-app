@@ -111,7 +111,7 @@ const CreateCounselorForm = () => {
               Create New Counselor
             </h1>
             <p className="text-gray-600 mt-1">
-              Register a new counselor with their details and assigned program
+              Register a new counselor with their details and assigned college
             </p>
           </div>
           
@@ -127,7 +127,7 @@ const CreateCounselorForm = () => {
                     id="name"
                     value={formData.name}
                     onChange={(e) => handleChange("name", e.target.value)}
-                    placeholder="John Abe;"
+                    placeholder="John Abel Silmaro"
                     required
                   />
                 </div>
@@ -185,7 +185,7 @@ const CreateCounselorForm = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Select program" />
                     </SelectTrigger>
-                    <SelectContent className="text-black">
+                    <SelectContent className="text-black bg-gray-50">
                       {programOptions.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}
@@ -206,7 +206,7 @@ const CreateCounselorForm = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Select expertise" />
                     </SelectTrigger>
-                    <SelectContent className="text-black">
+                    <SelectContent className="text-black bg-gray-50">
                       {expertiseOptions.map((option) => (
                         <SelectItem key={option} value={option}>
                           {option}

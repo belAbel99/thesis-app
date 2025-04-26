@@ -223,8 +223,6 @@ export const logoutCounselor = async () => {
 export const getStudentsByCounselorId = async (
   counselorId: string, 
   program: string,
-  limit: number,
-  offset: number
   ) => {
 
   try {
