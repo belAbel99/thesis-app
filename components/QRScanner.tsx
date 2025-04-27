@@ -62,14 +62,20 @@ export const QrScanner = ({
 
       scanner.render(
         (decodedText) => {
-          scanner.clear(); // stop scanning after success
+          scanner.clear(); // Stop scanning after success
           onScanSuccess(decodedText);
         },
         (scanError) => {
-          if (scanError && !scanError.includes("NotFoundException")) {
-            console.error("Scan error:", scanError);
-            setError(scanError);
-            onScanError?.(scanError);
+          if (scanError) {
+            // Ignore normal "no QR detected" errors
+            if (
+              !scanError.includes("NotFoundException") &&
+              !scanError.includes("No MultiFormat Readers")
+            ) {
+              console.error("Scan error:", scanError);
+              setError(scanError);
+              onScanError?.(scanError);
+            }
           }
         }
       );
@@ -129,7 +135,7 @@ export const QrScanner = ({
       {cameraReady && !error && (
         <div className="mt-4 text-center text-sm text-gray-600">
           <p>• Ensure good lighting</p>
-          <p>• Hold steady 15-30cm from the camera</p>
+          <p>• Hold steady 15–30cm from the camera</p>
           <p>• Avoid glare on the QR code</p>
         </div>
       )}
