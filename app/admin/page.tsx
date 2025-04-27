@@ -1,11 +1,11 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import SideBar from "@/components/SideBar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { UserRound, Calendar, BookOpenText, Stethoscope, CheckCircle, XCircle, Clock, Info } from "lucide-react";
 import { Client, Databases } from "appwrite";
+import PasskeyModal from "@/components/PasskeyModal";
 
 const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
@@ -22,60 +22,94 @@ const AdminDashboard = () => {
   const [cancelledAppointments, setCancelledAppointments] = useState(0);
   const [scheduledAppointments, setScheduledAppointments] = useState(0);
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch students
-        const studentsRes = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_PATIENT_COLLECTION_ID!
-        );
-        setStudentsCount(studentsRes.documents.length);
-
-        // Fetch counselors
-        const counselorsRes = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!
-        );
-        setCounselorsCount(counselorsRes.documents.length);
-
-        // Fetch appointments
-        const appointmentsRes = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_DATABASE_ID!,
-          "6734ba2700064c66818e" // Appointment collection ID
-        );
-        
-        const allAppointments = appointmentsRes.documents;
-        setAppointmentsCount(allAppointments.length);
-        
-        // Count appointments by status
-        const completed = allAppointments.filter((appt: any) => appt.status === "Completed").length;
-        const cancelled = allAppointments.filter((appt: any) => appt.status === "Cancelled").length;
-        const scheduled = allAppointments.filter((appt: any) => appt.status === "Scheduled").length;
-        
-        setCompletedAppointments(completed);
-        setCancelledAppointments(cancelled);
-        setScheduledAppointments(scheduled);
-        
-        // Get upcoming appointments (next 7 days)
-        const today = new Date();
-        const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-        
-        const upcoming = allAppointments.filter((appt: any) => {
-          const apptDate = new Date(appt.date);
-          return appt.status === "Scheduled" && apptDate >= today && apptDate <= nextWeek;
-        }).slice(0, 3); // Only show 3 upcoming
-        
-        setUpcomingAppointments(upcoming);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      }
-    };
-
-    fetchData();
+    // Check admin status
+    const adminStatus = localStorage.getItem('admin') === 'true';
+    setIsAdmin(adminStatus);
+    
+    if (!adminStatus) {
+      setShowPasskeyModal(true);
+    } else {
+      fetchData();
+    }
   }, []);
+
+  const fetchData = async () => {
+    try {
+      // Fetch students
+      const studentsRes = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_PATIENT_COLLECTION_ID!
+      );
+      setStudentsCount(studentsRes.documents.length);
+
+      // Fetch counselors
+      const counselorsRes = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_COUNSELOR_COLLECTION_ID!
+      );
+      setCounselorsCount(counselorsRes.documents.length);
+
+      // Fetch appointments
+      const appointmentsRes = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_DATABASE_ID!,
+        "6734ba2700064c66818e" // Appointment collection ID
+      );
+      
+      const allAppointments = appointmentsRes.documents;
+      setAppointmentsCount(allAppointments.length);
+      
+      // Count appointments by status
+      const completed = allAppointments.filter((appt: any) => appt.status === "Completed").length;
+      const cancelled = allAppointments.filter((appt: any) => appt.status === "Cancelled").length;
+      const scheduled = allAppointments.filter((appt: any) => appt.status === "Scheduled").length;
+      
+      setCompletedAppointments(completed);
+      setCancelledAppointments(cancelled);
+      setScheduledAppointments(scheduled);
+      
+      // Get upcoming appointments (next 7 days)
+      const today = new Date();
+      const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      
+      const upcoming = allAppointments.filter((appt: any) => {
+        const apptDate = new Date(appt.date);
+        return appt.status === "Scheduled" && apptDate >= today && apptDate <= nextWeek;
+      }).slice(0, 3); // Only show 3 upcoming
+      
+      setUpcomingAppointments(upcoming);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    }
+  };
+
+  const handleSuccess = () => {
+    setIsAdmin(true);
+    setShowPasskeyModal(false);
+    fetchData();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin');
+    router.push('/');
+  };
+
+  if (!isAdmin) {
+    return showPasskeyModal ? (
+      <PasskeyModal 
+        onClose={() => router.push('/')} 
+        onSuccess={handleSuccess} 
+      />
+    ) : (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   // Original Completion Rate (completed vs cancelled only)
   const completionRate = cancelledAppointments > 0 
@@ -99,9 +133,17 @@ const AdminDashboard = () => {
       <div className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-blue-700">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-2">Manage counseling system and student well-being</p>
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-blue-700">Admin Dashboard</h1>
+              <p className="text-gray-600 mt-2">Manage counseling system and student well-being</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
+            >
+              Logout
+            </button>
           </div>
 
           {/* Stats Cards */}

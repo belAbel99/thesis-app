@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StudentList from "@/components/StudentList";
 import CounselorList from "@/components/CounselorList";
@@ -8,7 +9,15 @@ import SideBar from "@/components/SideBar";
 
 const StudentsPage = () => {
   const [activeTab, setActiveTab] = useState("students");
+  const router = useRouter();
 
+  useEffect(() => {
+    // Redirect if not admin
+    if (localStorage.getItem('admin') !== 'true') {
+      router.push('/admin/verify');
+    }
+  }, [router]);
+  
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       {/* Sidebar - Now properly included */}

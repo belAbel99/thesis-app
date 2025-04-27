@@ -15,7 +15,6 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import Image from 'next/image';
-import { encryptKey } from '@/lib/utils';
 
 interface PasskeyModalProps {
   onClose: () => void;
@@ -42,8 +41,8 @@ const PasskeyModal = ({ onClose, onSuccess }: PasskeyModalProps) => {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     if (passkey === process.env.NEXT_PUBLIC_ADMIN_PASSKEY) {
-      const encryptedKey = encryptKey(passkey);
-      localStorage.setItem('accessKey', encryptedKey);
+      // Set admin status in localStorage
+      localStorage.setItem('admin', 'true');
       onSuccess();
     } else {
       setError('Invalid passkey. Please try again.');

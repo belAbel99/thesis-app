@@ -20,6 +20,13 @@ const QRScannerPage = () => {
   const [file, setFile] = useState<File | null>(null);
   const [cameraActive, setCameraActive] = useState(true);
   const router = useRouter();
+  
+  useEffect(() => {
+    // Redirect if not admin
+    if (localStorage.getItem('admin') !== 'true') {
+      router.push('/admin/verify');
+    }
+  }, [router]);
 
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)

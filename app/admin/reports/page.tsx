@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { generateAppointmentReport, generatePDFReport } from "@/utils/reportGenerator";
 import { Download, BarChart2, PieChart as LucidePieChart, Calendar as CalendarIcon } from "lucide-react";
@@ -31,7 +32,15 @@ const AdminReportsPage = () => {
   const [customStartDate, setCustomStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [customEndDate, setCustomEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+  const router = useRouter();
 
+  useEffect(() => {
+    // Redirect if not admin
+    if (localStorage.getItem('admin') !== 'true') {
+      router.push('/admin/verify');
+    }
+  }, [router]);
+  
   const loadReport = async () => {
     setLoading(true);
     try {

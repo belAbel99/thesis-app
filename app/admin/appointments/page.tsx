@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Client, Databases, Query } from "appwrite";
 import SideBar from "@/components/SideBar";
 import { Button } from "@/components/ui/button";
@@ -63,7 +64,15 @@ const AdminAppointmentsPage = () => {
   const [newStatus, setNewStatus] = useState<"Cancelled" | "Completed" | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [followUpRequired, setFollowUpRequired] = useState(false);
-  
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect if not admin
+    if (localStorage.getItem('admin') !== 'true') {
+      router.push('/admin/verify');
+    }
+  }, [router]);
+
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_PROJECT_ID!);

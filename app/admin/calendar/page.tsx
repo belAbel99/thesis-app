@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Client, Databases } from "appwrite";
 import SideBar from "@/components/SideBar";
 import { Calendar as ChevronLeft, ChevronRight } from "lucide-react";
@@ -40,7 +41,15 @@ const AdminCalendarPage = () => {
   const [selectedStatus, setSelectedStatus] = useState<"Cancelled" | "Completed" | null>(null);
   const [counselorNotes, setCounselorNotes] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
+  const router = useRouter();
 
+  useEffect(() => {
+    // Redirect if not admin
+    if (localStorage.getItem('admin') !== 'true') {
+      router.push('/admin/verify');
+    }
+  }, [router]);
+  
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_PROJECT_ID!);
