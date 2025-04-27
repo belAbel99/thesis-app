@@ -88,7 +88,7 @@ const CreateCounselorForm = () => {
       });
 
       setMessage({ text: "Counselor account created successfully!", type: "success" });
-      setTimeout(() => router.push("/admin/counselors"), 1500);
+      setTimeout(() => router.push("/admin/counselors/login"), 1500);
     } catch (error) {
       console.error("Error creating counselor:", error);
       setMessage({ 
