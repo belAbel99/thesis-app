@@ -48,6 +48,7 @@ export const QRCodeDisplay = ({
                 src={qrCodeUrl} 
                 alt="Appointment QR Code" 
                 className="w-full h-auto"
+                crossOrigin="anonymous"
               />
               
               {/* Option 2: Using Next.js Image (requires next.config.js update) */}
