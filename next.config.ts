@@ -1,7 +1,7 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -10,13 +10,55 @@ const nextConfig = {
   },
   experimental: {
     runtime: 'nodejs' // Uncomment if needed
+  },
+  // Add these new configurations
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()'
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp'
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(self)'
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp'
+          }
+        ]
+      }
+    ]
+  },
+  images: {
+    domains: [
+      'localhost', 
+      process.env.NEXT_PUBLIC_ENDPOINT?.replace(/https?:\/\//, '') || ''
+    ].filter(Boolean),
+  },
+  // Security headers
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_ENDPOINT}/api/:path*`
+      }
+    ]
   }
 }
 
-module.exports = nextConfig as NextConfig;
-
 const sentryWebpackPluginOptions = {
-  // Sentry configuration
   org: "none-ywb",
   project: "javascript-nextjs",
   silent: !process.env.CI,
@@ -28,5 +70,4 @@ const sentryWebpackPluginOptions = {
   automaticVercelMonitors: true,
 };
 
-// Export the final configuration
 export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

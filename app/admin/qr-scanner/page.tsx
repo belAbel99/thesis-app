@@ -4,8 +4,8 @@ import { QrScanner } from "@/components/QRScanner";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Upload, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Client, Databases, Query, ID} from "appwrite";
+import { useState, useEffect } from "react";
+import { Client, Databases, Query, ID } from "appwrite";
 import SideBar from "@/components/SideBar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ const QRScannerPage = () => {
   const [scanResult, setScanResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [cameraActive, setCameraActive] = useState(true);
@@ -25,6 +26,23 @@ const QRScannerPage = () => {
     .setProject(process.env.NEXT_PUBLIC_PROJECT_ID!);
   
   const databases = new Databases(client);
+
+  // Check camera permissions on mount
+  useEffect(() => {
+    const checkCameraPermissions = async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch (err: any) {
+        setCameraError(
+          err.name === 'NotAllowedError' 
+            ? "Camera access was denied. Please check browser permissions."
+            : "Camera access is required for scanning QR codes."
+        );
+      }
+    };
+    
+    checkCameraPermissions();
+  }, []);
 
   const handleScanSuccess = async (decodedText: string) => {
     if (scanResult) return;
@@ -42,7 +60,13 @@ const QRScannerPage = () => {
       try {
         parsedData = JSON.parse(decodedText);
       } catch (e) {
-        throw new Error("Invalid QR code format");
+        // Try URL parsing if it's a URL-encoded QR
+        try {
+          const urlParams = new URLSearchParams(decodedText.split('?')[1]);
+          parsedData = Object.fromEntries(urlParams.entries());
+        } catch (urlError) {
+          throw new Error("Invalid QR code format");
+        }
       }
 
       // Verify the hash
@@ -121,7 +145,6 @@ const QRScannerPage = () => {
       if (counselors.documents.length > 0) {
         const counselor = counselors.documents[0];
         
-        // Create notification
         await databases.createDocument(
           process.env.NEXT_PUBLIC_DATABASE_ID!,
           process.env.NEXT_PUBLIC_NOTIFICATIONS_COLLECTION_ID!,
@@ -149,6 +172,20 @@ const QRScannerPage = () => {
       console.error("Scan error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScanError = (error: string) => {
+    console.error("Scanner error:", error);
+    
+    if (error.includes("NotAllowedError")) {
+      setCameraError("Camera access was denied. Please check browser permissions.");
+    } else if (error.includes("NotFoundError")) {
+      setCameraError("No camera device found.");
+    } else if (error.includes("No MultiFormat Readers")) {
+      setError("Please center the QR code in the frame and ensure good lighting");
+    } else if (!error.includes("NotFoundException")) {
+      setError(error);
     }
   };
 
@@ -221,6 +258,7 @@ const QRScannerPage = () => {
   const resetScanner = () => {
     setScanResult(null);
     setError(null);
+    setCameraError(null);
     setSuccess(false);
     setFile(null);
     setCameraActive(true);
@@ -250,6 +288,7 @@ const QRScannerPage = () => {
                     variant={cameraActive ? "default" : "outline"} 
                     onClick={toggleCamera}
                     className="flex items-center gap-2"
+                    disabled={!!cameraError}
                   >
                     <Camera className="w-4 h-4" />
                     Use Camera
@@ -264,16 +303,21 @@ const QRScannerPage = () => {
                   </Button>
                 </div>
 
-                {cameraActive ? (
+                {cameraError && cameraActive ? (
+                  <div className="w-full max-w-md text-center p-4 bg-red-50 text-red-600 rounded-lg">
+                    <p>{cameraError}</p>
+                    <Button 
+                      onClick={() => setCameraError(null)}
+                      className="mt-2"
+                    >
+                      Retry Camera
+                    </Button>
+                  </div>
+                ) : cameraActive ? (
                   <div className="w-full max-w-md">
                     <QrScanner
                       onScanSuccess={handleScanSuccess}
-                      onScanError={(err) => {
-                        // Ignore common "not found" errors during scanning
-                        if (!err.includes("NotFoundException")) {
-                          setError(err);
-                        }
-                      }}
+                      onScanError={handleScanError}
                       qrbox={{ width: 250, height: 250 }}
                     />
                     <p className="mt-4 text-gray-500 text-center">
