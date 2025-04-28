@@ -59,8 +59,8 @@ const WORKING_HOURS = {
   end: 17,   // 5 PM
 };
 
-const SLOT_DURATION = 30; // minutes
-const MAX_STUDENTS_PER_SLOT = 3;
+const SLOT_DURATION = 60; // minutes
+const MAX_STUDENTS_PER_SLOT = 2;
 
 const StudentCalendarPage = () => {
   const params = useParams();
@@ -161,10 +161,9 @@ const StudentCalendarPage = () => {
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = WORKING_HOURS.start; hour <= WORKING_HOURS.end; hour++) {
-      for (let minute = 0; minute < 60; minute += SLOT_DURATION) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
+      // Only create slots on the hour (no minute intervals)
+      const time = `${hour.toString().padStart(2, '0')}:00`;
+      slots.push(time);
     }
     return slots;
   };

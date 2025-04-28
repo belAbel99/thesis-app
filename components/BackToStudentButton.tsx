@@ -48,7 +48,7 @@ const BackToStudentButton = ({ userId }: BackToStudentButtonProps) => {
           Loading...
         </div>
       ) : (
-        "← Back to Student"
+        "← Back to Dashboard"
       )}
     </button>
   );

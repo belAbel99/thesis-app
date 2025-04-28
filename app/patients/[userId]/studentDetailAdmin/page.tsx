@@ -303,7 +303,7 @@ const StudentDetail = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Concern Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session Notes</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Follow Up</th>
                       </tr>
                     </thead>
@@ -325,8 +325,8 @@ const StudentDetail = () => {
                               {appointment.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">{appointment.reason}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{appointment.concernType}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{appointment.reason || "N/A"}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{appointment.sessionNotes || "N/A"}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {appointment.followUpRequired ? (
                               <Check className="text-green-500" />

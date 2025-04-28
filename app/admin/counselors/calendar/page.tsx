@@ -25,8 +25,8 @@ const WORKING_HOURS = {
   end: 17,   // 5 PM
 };
 
-const SLOT_DURATION = 30; // minutes
-const DEFAULT_MAX_CAPACITY = 3;
+const SLOT_DURATION = 60; // minutes - CHANGED FROM 30 TO 60
+const DEFAULT_MAX_CAPACITY = 2; // CHANGED FROM 3 TO 2
 
 interface Appointment {
   $id: string;
@@ -191,16 +191,15 @@ const CounselorCalendarPage = () => {
   }, []);
 
   // Generate time slots for a day
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = WORKING_HOURS.start; hour <= WORKING_HOURS.end; hour++) {
-      for (let minute = 0; minute < 60; minute += SLOT_DURATION) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
-    }
-    return slots;
-  };
+const generateTimeSlots = () => {
+  const slots = [];
+  for (let hour = WORKING_HOURS.start; hour <= WORKING_HOURS.end; hour++) {
+    // Only create slots on the hour (no minute intervals)
+    const time = `${hour.toString().padStart(2, '0')}:00`;
+    slots.push(time);
+  }
+  return slots;
+};
 
   // Get slot configuration for a specific time
   const getSlotConfig = (time: string) => {
